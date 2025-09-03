@@ -86,7 +86,7 @@ POWER: '^'; // Could be exponentiation or XOR
 BITWISE_OR: '|'; // Could also be used in logical expressions
 
 // Keyword
-NEW: 'new';
+NEW: 'new'; // Object Creation
 
 // A common rule for backslash, often used for escape sequences in strings.
 BACKSLASH: '\';
@@ -103,3 +103,14 @@ COLON: ':';
 DOT: '.';
 COMMA: ',';
 
+// SPECIAL CHARACTERS
+TILDE: '~'; // for class deconstructor
+AMPERSAND: '&'; // for variable reference
+
+// LITERALS
+INTEGER_LITERAL: [0-9]+;
+FLOAT_LITERAL: [0-9]+ ('.' [0-9]*)? (('e'|'E') ('+'|'-')? [0-9]+)?;
+BOOLEAN_LITERAL: TRUE | FALSE;
+STRING_LITERAL: '"' (~["\\] | '\\' .)* '"';
+array_literal: LBRACE (value (COMMA value)*)? RBRACE;
+value: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL;
