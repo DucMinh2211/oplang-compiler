@@ -30,9 +30,12 @@ WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs
 COMMENT_LINE: '#' ~[\r\n]* -> skip; // skip comment line (skip anything till end of line or end of file)
 COMMENT_BLOCK: '\/\*' .*? '\*\/' -> skip; // skip comment block (a comment block must be closed)
 
-ERROR_CHAR: .;
-ILLEGAL_ESCAPE:.;
-UNCLOSE_STRING:.;
+ERROR_CHAR: ~[\p{ASCII}];
+ILLEGAL_ESCAPE: '\\' ~[nr\t\\];
+UNCLOSE_STRING: '\"' ~[\n\r\"]*? ('EOF' | '\n' | '\r');
+
+// IDENTIFIER
+ID: [a-zA-Z_][a-zA-Z0-9_]*;
 
 // KEYWORDS
 BOOLEAN: 'boolean';
@@ -111,6 +114,6 @@ AMPERSAND: '&'; // for variable reference
 INTEGER_LITERAL: [0-9]+;
 FLOAT_LITERAL: [0-9]+ ('.' [0-9]*)? (('e'|'E') ('+'|'-')? [0-9]+)?;
 BOOLEAN_LITERAL: TRUE | FALSE;
-STRING_LITERAL: '"' (~["\\] | '\\' .)* '"';
+STRING_LITERAL: '\"' (~[\n\r\"\\] | '\\' .)* '\"';
 array_literal: LBRACE (value (COMMA value)*)? RBRACE;
 value: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL;
