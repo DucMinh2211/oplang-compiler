@@ -30,10 +30,6 @@ WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs
 COMMENT_LINE: '#' ~[\r\n]* -> skip; // skip comment line (skip anything till end of line or end of file)
 COMMENT_BLOCK: '/*' .*? '*/' -> skip; // skip comment block (a comment block must be closed)
 
-ERROR_CHAR: ~[\u0000-\u007F];
-ILLEGAL_ESCAPE: '\\' [fbnr\t"\\];
-UNCLOSE_STRING: '"' ~[\n\r"]*? (EOF | '\n' | '\r');
-
 // IDENTIFIER
 ID: [a-zA-Z_][a-zA-Z0-9_]*;
 
@@ -68,7 +64,8 @@ DOWNTO: 'downto';
 PLUS: '+';
 MINUS: '-';
 MULTIPLY: '*';
-DIVIDE: '/';
+FLOAT_DIVISION: '/';
+INTEGER_DIVISION: '\\';
 MODULO: '%';
 
 // Relational and Equality Operators
@@ -78,6 +75,9 @@ LESS_THAN: '<';
 GREATER_THAN: '>';
 LESS_THAN_OR_EQUAL: '<=';
 GREATER_THAN_OR_EQUAL: '>=';
+
+// Assign
+ASSIGN: ':=';
 
 // Logical Operators
 LOGICAL_OR: '||';
@@ -108,6 +108,11 @@ AMPERSAND: '&'; // for variable reference
 INTEGER_LITERAL: [0-9]+;
 FLOAT_LITERAL: [0-9]+ ('.' [0-9]*)? (('e'|'E') ('+'|'-')? [0-9]+)?;
 BOOLEAN_LITERAL: TRUE | FALSE;
-STRING_LITERAL: '"' (~[\n\r"\\] | '\\' .)* '"';
+STRING_LITERAL: '"' ( '\\' [btnfr"'\\] | ~[\b\t\f\r\n\\"] )* '"' { self.text = self.text[1:-1] };
 array_literal: LBRACE (value (COMMA value)*)? RBRACE;
 value: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL;
+
+// ERRORS
+ILLEGAL_ESCAPE: '"' ~[\n\r"]*? ('\\' ~[btnfr"'\\]) { self.text = self.text[1:] };
+UNCLOSE_STRING: '"' ~[\n\r"]*? (EOF | '\n' | '\r') { self.text = self.text[1:] };
+ERROR_CHAR: .;
