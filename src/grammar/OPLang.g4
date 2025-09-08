@@ -24,7 +24,25 @@ options{
 	language=Python3;
 }
 
-program: EOF; // write for program rule here using vardecl and funcdecl
+program: class_declaration+ EOF; // write for program rule here using vardecl and funcdecl
+
+class_declaration: CLASS ID (EXTENDS ID)? LBRACE member* RBRACE;
+
+member: STATIC? attribute_declaration | method_declaration;
+
+attribute_declaration: FINAL? type (attribute_name (COMMA attribute_name)*) SEMICOLON;
+
+attribute_name: ID (MEMBER_ASSIGN value)?;
+
+method_declaration: type AMPERSAND? ID (parameter (SEMICOLON parameter)*)? block_statements;
+
+parameter: type AMPERSAND? (ID (COMMA ID)*);
+
+type: literals | ID | VOID;
+
+literals: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL;
+
+block_statements: LBRACE statement* RBRACE;
 
 WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs 
 COMMENT_LINE: '#' ~[\r\n]* -> skip; // skip comment line (skip anything till end of line or end of file)
@@ -78,6 +96,7 @@ GREATER_THAN_OR_EQUAL: '>=';
 
 // Assign
 ASSIGN: ':=';
+MEMBER_ASSIGN: '=';
 
 // Logical Operators
 LOGICAL_OR: '||';
