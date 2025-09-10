@@ -211,6 +211,7 @@ TO: 'to';
 DOWNTO: 'downto';
 
 // IDENTIFIER
+/* rule which can be read as KEYWORDS must be at below KEYWORDS */
 ID: [a-zA-Z_][a-zA-Z0-9_]*;
 
 // OPERATOR
