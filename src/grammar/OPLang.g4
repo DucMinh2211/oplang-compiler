@@ -53,7 +53,8 @@ attribute_name: ID MEMBER_ASSIGN value | ID;
 /* === METHOD DECLARATION === */
 method_decl: type is_ref ID LPAREN param_nulist RPAREN block_statement;
 
-param_nulist: param SEMI param_nulist | ;
+param_nulist: param_prime | ;
+param_prime: param SEMI param_prime | ;
 param: type is_ref id_list;
 id_list: ID COMMA id_list | ID;
 
