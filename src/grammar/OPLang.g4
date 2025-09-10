@@ -38,7 +38,7 @@ class_decl: CLASS ID class_extends LBRACE member_nulist RBRACE;
 
 class_extends: EXTENDS ID | ;
 member_nulist: member member_nulist | ;
-member: is_static attribute_decl | method_decl;
+member: (is_static (attribute_decl | method_decl)) | constructors;
 is_static: STATIC | ;
 /* === === === */
 
@@ -47,14 +47,14 @@ attribute_decl: is_final type attribute_name_list SEMI;
 attribute_name_list: attribute_name COMMA attribute_name_list | attribute_name;
 
 is_final: FINAL | ;
-attribute_name: ID MEMBER_ASSIGN value | ID;
+attribute_name: ID MEMBER_ASSIGN literals | ID;
 /* === === === */
 
 /* === METHOD DECLARATION === */
 method_decl: type is_ref ID LPAREN param_nulist RPAREN block_statement;
 
 param_nulist: param_prime | ;
-param_prime: param SEMI param_prime | ;
+param_prime: param SEMI param_prime | param;
 param: type is_ref id_list;
 id_list: ID COMMA id_list | ID;
 
@@ -62,6 +62,12 @@ is_ref: AMPERSAND | ;
 /* === === === */
 
 /* === CONSTRUCTOR DECLARATION === */
+constructors: def_constructor
+            | copy_constructor
+            | custom_constructor
+            | destructor
+            ;
+
 def_constructor: ID LPAREN RPAREN block_statement;
 copy_constructor: ID LPAREN ID 'other' RPAREN block_statement;
 custom_constructor: ID LPAREN param_nulist RPAREN block_statement;
@@ -100,7 +106,6 @@ expr9: expr9 DOT (method_invocation | ID) | fact;
 
 fact: literals
     | ID
-    | THIS
     | NIL
     | method_invocation
     | obj_creation
@@ -112,44 +117,61 @@ obj_creation: NEW ID LPAREN expr_nulist RPAREN;
 expr_nulist: expr_prime | ;
 expr_prime: expr0 COMMA expr_prime | expr0;
 
-method_invocation: (ID | THIS) LPAREN expr_nulist RPAREN;
+method_invocation: ID LPAREN expr_nulist RPAREN;
 /* === === === */
 
 /* === BLOCK STATEMENT === */
-block_statement: LBRACE var_decl_nulist stmt_nulist RBRACE;
+block_statement: LBRACE stmt_nulist RBRACE;
 
 stmt_nulist: stmt stmt_nulist | ;
-var_decl_nulist: var_decl var_decl_nulist | ;
 
-var_decl: is_final type id_list SEMI;
-
-stmt: assign_stmt
+stmt: var_decl
+    | assign_stmt
     | if_stmt
     | for_stmt
     | break_stmt
     | continue_stmt
     | return_stmt
-    | method_invocation SEMI
+    | method_invo_stmt
     | block_statement
     ;
+
+var_decl: is_final type attribute_name_list SEMI;
 
 assign_stmt: lhs ASSIGN expr0 SEMI;
 lhs: ID | ID array_access;
 
 if_stmt: IF expr0 THEN stmt (ELSE stmt | );
-
-for_stmt: FOR ID /*(scalar var)*/ ASSIGN expr0 LPAREN (TO | DOWNTO) expr0 RPAREN DO stmt;
-
+for_stmt: FOR ID /*(scalar var)*/ ASSIGN expr0 (TO | DOWNTO) expr0 DO stmt;
 break_stmt: BREAK SEMI;
-
 continue_stmt: CONTINUE SEMI;
-
 return_stmt: RETURN expr0 SEMI | RETURN SEMI;
+method_invo_stmt: ((ID | THIS) DOT | ) method_invocation SEMI;
 /* === === === */
 
-type: literals | ID | VOID;
+type: (INT | FLOAT | BOOLEAN | STRING | ID) array_decl | VOID;
+array_decl: LBRACKET INTEGER_LITERAL RBRACKET | ;
 
-literals: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL;
+literals: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL | array_literal;
+
+array_literal: float_array | int_array | bool_array id_array | str_array;
+float_array: LBRACE float_nulist RBRACE;
+int_array: LBRACE int_nulist RBRACE;
+bool_array: LBRACE bool_nulist RBRACE;
+str_array: LBRACE str_nulist RBRACE;
+id_array: LBRACE id_nulist RBRACE;
+
+float_nulist: float_prime | ;
+int_nulist: int_prime | ;
+bool_nulist: bool_prime | ;
+str_nulist: str_prime | ;
+id_nulist: id_prime | ;
+
+float_prime: FLOAT_LITERAL COMMA float_prime | FLOAT_LITERAL;
+int_prime: INTEGER_LITERAL COMMA int_prime | INTEGER_LITERAL;
+bool_prime: BOOLEAN_LITERAL COMMA bool_prime | BOOLEAN_LITERAL;
+str_prime: STRING_LITERAL COMMA str_prime | STRING_LITERAL;
+id_prime: ID COMMA id_prime | ID;
 
 
 /*
@@ -161,9 +183,6 @@ literals: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL;
 WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs 
 COMMENT_LINE: '#' ~[\r\n]* -> skip; // skip comment line (skip anything till end of line or end of file)
 COMMENT_BLOCK: '/*' .*? '*/' -> skip; // skip comment block (a comment block must be closed)
-
-// IDENTIFIER
-ID: [a-zA-Z_][a-zA-Z0-9_]*;
 
 // KEYWORDS
 BOOLEAN: 'boolean';
@@ -190,6 +209,9 @@ FINAL: 'final';
 STATIC: 'static';
 TO: 'to';
 DOWNTO: 'downto';
+
+// IDENTIFIER
+ID: [a-zA-Z_][a-zA-Z0-9_]*;
 
 // OPERATOR
 // Arithmetic Operators
@@ -241,8 +263,6 @@ INTEGER_LITERAL: [0-9]+;
 FLOAT_LITERAL: [0-9]+ ('.' [0-9]*)? (('e'|'E') ('+'|'-')? [0-9]+)?;
 BOOLEAN_LITERAL: TRUE | FALSE;
 STRING_LITERAL: '"' ( '\\' [btnfr"'\\] | ~[\b\t\f\r\n\\"] )* '"' { self.text = self.text[1:-1] };
-array_literal: LBRACE (value (COMMA value)*)? RBRACE;
-value: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL;
 
 // ERRORS
 ILLEGAL_ESCAPE: '"' ~[\n\r"]*? ('\\' ~[btnfr"'\\]) { self.text = self.text[1:] };
