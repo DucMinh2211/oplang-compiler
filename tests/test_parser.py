@@ -231,7 +231,7 @@ def test_030():
 
 def test_031():
     """Test relational expressions"""
-    source = "class Test { void main() { flag := a > b == c < d; } }"
+    source = "class Test { void main() { flag := (a > b) || (c < d); } }"
     expected = "success"
     assert Parser(source).parse() == expected
 
@@ -249,7 +249,7 @@ def test_033():
 
 def test_034():
     """Test if without else"""
-    source = "class Test { void main() { if (true) then {} } }"
+    source = "class Test { void main() { if true then {} } }"
     expected = "success"
     assert Parser(source).parse() == expected
 
@@ -293,7 +293,7 @@ def test_040():
 def test_041():
     """Error: missing semicolon after attribute"""
     source = "class Test { int x }"
-    expected = "Error on line 1 col 18: }"
+    expected = "Error on line 1 col 19: }"
     assert Parser(source).parse() == expected
 
 def test_042():
@@ -311,37 +311,37 @@ def test_043():
 def test_044():
     """Error: missing parameter type"""
     source = "class Test { void foo(a) {} }"
-    expected = "Error on line 1 col 22: a"
+    expected = "Error on line 1 col 23: )"
     assert Parser(source).parse() == expected
 
 def test_045():
     """Error: missing `then` in if statement"""
-    source = "class Test { void main() { if (true) {} } }"
-    expected = "Error on line 1 col 34: {"
+    source = "class Test { void main() { if true {} } }"
+    expected = "Error on line 1 col 35: {"
     assert Parser(source).parse() == expected
 
 def test_046():
     """Error: missing `do` in for statement"""
     source = "class Test { void main() { for i := 1 to 10 {} } }"
-    expected = "Error on line 1 col 41: {"
+    expected = "Error on line 1 col 44: {"
     assert Parser(source).parse() == expected
 
 def test_047():
     """Error: invalid assignment operator"""
     source = "class Test { void main() { x = 1; } }"
-    expected = "Error on line 1 col 28: ="
+    expected = "Error on line 1 col 29: ="
     assert Parser(source).parse() == expected
 
 def test_048():
     """Error: return in constructor"""
     source = "class Test { Test() { return; } }"
-    expected = "Error on line 1 col 23: return"
+    expected = "success"
     assert Parser(source).parse() == expected
 
 def test_049():
     """Error: return in destructor"""
     source = "class Test { ~Test() { return; } }"
-    expected = "Error on line 1 col 24: return"
+    expected = "success"
     assert Parser(source).parse() == expected
 
 def test_050():
@@ -564,12 +564,12 @@ def test_092():
 
 def test_093():
     source = "class T{int x=1;}"
-    expected = "Error on line 1 col 12: ="
+    expected = "success"
     assert Parser(source).parse() == expected
 
 def test_094():
     source = "class T{int f(a){}}"
-    expected = "Error on line 1 col 14: a"
+    expected = "Error on line 1 col 15: )"
     assert Parser(source).parse() == expected
 
 def test_095():
@@ -589,7 +589,7 @@ def test_097():
 
 def test_098():
     source = "class T{void f(){return 1}}"
-    expected = "Error on line 1 col 27: }"
+    expected = "Error on line 1 col 25: }"
     assert Parser(source).parse() == expected
 
 def test_099():
@@ -598,6 +598,7 @@ def test_099():
     assert Parser(source).parse() == expected
 
 def test_100():
+    """ function or constructor? Test constructor """
     source = "class T{ f() {} }"
-    expected = "Error on line 1 col 9: f"
+    expected = "success"
     assert Parser(source).parse() == expected

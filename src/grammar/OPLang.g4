@@ -30,49 +30,49 @@ options{
 ####################
  */
 
-program: class_decl_list EOF; // write for program rule here using vardecl and funcdecl
+program: classDeclList EOF; // write for program rule here using vardecl and funcdecl
 
 /* === CLASS DECLARATION === */
-class_decl_list: class_decl class_decl_list | class_decl;
-class_decl: CLASS ID class_extends LBRACE member_nulist RBRACE;
+classDeclList: classDecl classDeclList | classDecl;
+classDecl: CLASS ID classExtends LBRACE memberNulist RBRACE;
 
-class_extends: EXTENDS ID | ;
-member_nulist: member member_nulist | ;
-member: (is_static (attribute_decl | method_decl)) | constructors;
-is_static: STATIC | ;
+classExtends: EXTENDS ID | ;
+memberNulist: member memberNulist | ;
+member: (isStatic (attributeDecl | methodDecl)) | constructors;
+isStatic: STATIC | ;
 /* === === === */
 
 /* === ATTRIBUTE DECLARATION === */
-attribute_decl: is_final type attribute_name_list SEMI;
-attribute_name_list: attribute_name COMMA attribute_name_list | attribute_name;
+attributeDecl: isFinal type attributeNameList SEMI;
+attributeNameList: attributeName COMMA attributeNameList | attributeName;
 
-is_final: FINAL | ;
-attribute_name: ID MEMBER_ASSIGN literals | ID;
+isFinal: FINAL | ;
+attributeName: ID MEMBER_ASSIGN literals | ID;
 /* === === === */
 
 /* === METHOD DECLARATION === */
-method_decl: type is_ref ID LPAREN param_nulist RPAREN block_statement;
+methodDecl: type isRef ID LPAREN paramNulist RPAREN blockStatement;
 
-param_nulist: param_prime | ;
-param_prime: param SEMI param_prime | param;
-param: type is_ref id_list;
-id_list: ID COMMA id_list | ID;
+paramNulist: paramPrime | ;
+paramPrime: param SEMI paramPrime | param;
+param: type isRef idList;
+idList: ID COMMA idList | ID;
 
-is_ref: AMPERSAND | ;
+isRef: AMPERSAND | ;
 /* === === === */
 
 /* === CONSTRUCTOR DECLARATION === */
-constructors: def_constructor
-            | copy_constructor
-            | custom_constructor
+constructors: defConstructor
+            | copyConstructor
+            | customConstructor
             | destructor
             ;
 
-def_constructor: ID LPAREN RPAREN block_statement;
-copy_constructor: ID LPAREN ID 'other' RPAREN block_statement;
-custom_constructor: ID LPAREN param_nulist RPAREN block_statement;
+defConstructor: ID LPAREN RPAREN blockStatement;
+copyConstructor: ID LPAREN ID 'other' RPAREN blockStatement;
+customConstructor: ID LPAREN paramNulist RPAREN blockStatement;
 
-destructor: TILDE ID LPAREN RPAREN block_statement;
+destructor: TILDE ID LPAREN RPAREN blockStatement;
 /* === === === */
 
 /* === EXPRESSION === */
@@ -85,8 +85,8 @@ CMP_OP: EQUAL | NOT_EQUAL;
 expr2: expr2 AND_OR_OP expr3 | expr3;
 AND_OR_OP: LOGICAL_AND | LOGICAL_OR;
 
-expr3: expr3 ADD_SUB_BINOP expr4 | expr4;
-ADD_SUB_BINOP: PLUS | MINUS;
+expr3: expr3 ADD_SUB_OP expr4 | expr4;
+ADD_SUB_OP: PLUS | MINUS;
 
 expr4: expr4 MUL_DIV_MOD_OP expr5 | expr5;
 MUL_DIV_MOD_OP: MULTIPLY | FLOAT_DIVISION | INTEGER_DIVISION | MODULO;
@@ -96,82 +96,82 @@ STR_CONCAT_OP: STR_CONCAT;
 
 expr6: NOT expr6 | expr7;
 
-expr7: ADD_SUB_UNOP expr7 | expr8;
-ADD_SUB_UNOP: PLUS | MINUS;
+expr7: ADD_SUB_OP expr7 | expr8;
 
-expr8: expr8 array_access | expr9;
-array_access: LBRACKET expr0 RBRACKET;
+expr8: expr8 arrayAccess | expr9;
+arrayAccess: LBRACKET expr0 RBRACKET;
 
-expr9: expr9 DOT (method_invocation | ID) | fact;
+expr9: expr9 DOT (methodInvocation | ID) | fact;
 
 fact: literals
     | ID
     | NIL
-    | method_invocation
-    | obj_creation
+    | methodInvocation
+    | objCreation
     | THIS
     | LPAREN expr0 RPAREN
     ;
 
-obj_creation: NEW ID LPAREN expr_nulist RPAREN;
-expr_nulist: expr_prime | ;
-expr_prime: expr0 COMMA expr_prime | expr0;
+objCreation: NEW ID LPAREN exprNulist RPAREN;
+exprNulist: exprPrime | ;
+exprPrime: expr0 COMMA exprPrime | expr0;
 
-method_invocation: ID LPAREN expr_nulist RPAREN;
+methodInvocation: ID LPAREN exprNulist RPAREN;
 /* === === === */
 
 /* === BLOCK STATEMENT === */
-block_statement: LBRACE stmt_nulist RBRACE;
+blockStatement: LBRACE stmtNulist RBRACE;
 
-stmt_nulist: stmt stmt_nulist | ;
+stmtNulist: stmt stmtNulist | ;
 
-stmt: var_decl
-    | assign_stmt
-    | if_stmt
-    | for_stmt
-    | break_stmt
-    | continue_stmt
-    | return_stmt
-    | method_invo_stmt
-    | block_statement
+stmt: varDecl
+    | assignStmt
+    | ifStmt
+    | forStmt
+    | breakStmt
+    | continueStmt
+    | returnStmt
+    | methodInvoStmt
+    | blockStatement
     ;
 
-var_decl: is_final type attribute_name_list SEMI;
+varDecl: isFinal type attributeNameList SEMI;
 
-assign_stmt: lhs ASSIGN expr0 SEMI;
-lhs: ID | ID array_access;
+assignStmt: lhs ASSIGN expr0 SEMI;
+lhs: idOrRef arrayAccess | idOrRef;
+idOrRef: ID | THIS DOT ID | ID DOT ID;
 
-if_stmt: IF expr0 THEN stmt (ELSE stmt | );
-for_stmt: FOR ID /*(scalar var)*/ ASSIGN expr0 (TO | DOWNTO) expr0 DO stmt;
-break_stmt: BREAK SEMI;
-continue_stmt: CONTINUE SEMI;
-return_stmt: RETURN expr0 SEMI | RETURN SEMI;
-method_invo_stmt: ((ID | THIS) DOT | ) method_invocation SEMI;
+ifStmt: IF expr0 THEN stmt (ELSE stmt | );
+forStmt: FOR ID /*(scalar var)*/ ASSIGN expr0 (TO | DOWNTO) expr0 DO stmt;
+breakStmt: BREAK SEMI;
+continueStmt: CONTINUE SEMI;
+returnStmt: RETURN expr0 SEMI | RETURN SEMI;
+methodInvoStmt: ((ID | THIS) DOT | ) methodInvocation SEMI;
 /* === === === */
 
-type: (INT | FLOAT | BOOLEAN | STRING | ID) array_decl | VOID;
-array_decl: LBRACKET INTEGER_LITERAL RBRACKET | ;
+type: (INT | FLOAT | BOOLEAN | STRING | ID) arrayDecl | VOID;
+arrayDecl: LBRACKET INTEGER_LITERAL RBRACKET | ;
 
-literals: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL | array_literal;
+literals: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL | arrayLiteral;
 
-array_literal: float_array | int_array | bool_array id_array | str_array;
-float_array: LBRACE float_nulist RBRACE;
-int_array: LBRACE int_nulist RBRACE;
-bool_array: LBRACE bool_nulist RBRACE;
-str_array: LBRACE str_nulist RBRACE;
-id_array: LBRACE id_nulist RBRACE;
+arrayLiteral: floatArray | intArray | boolArray idArray | strArray;
+floatArray: LBRACE floatNulist RBRACE;
+intArray: LBRACE intNulist RBRACE;
+boolArray: LBRACE boolNulist RBRACE;
+strArray: LBRACE strNulist RBRACE;
+idArray: LBRACE idNulist RBRACE;
 
-float_nulist: float_prime | ;
-int_nulist: int_prime | ;
-bool_nulist: bool_prime | ;
-str_nulist: str_prime | ;
-id_nulist: id_prime | ;
+floatNulist: floatPrime | ;
+intNulist: intPrime | ;
+boolNulist: boolPrime | ;
+strNulist: strPrime | ;
+idNulist: idPrime | ;
 
-float_prime: FLOAT_LITERAL COMMA float_prime | FLOAT_LITERAL;
-int_prime: INTEGER_LITERAL COMMA int_prime | INTEGER_LITERAL;
-bool_prime: BOOLEAN_LITERAL COMMA bool_prime | BOOLEAN_LITERAL;
-str_prime: STRING_LITERAL COMMA str_prime | STRING_LITERAL;
-id_prime: ID COMMA id_prime | ID;
+floatPrime: FLOAT_LITERAL COMMA floatPrime | FLOAT_LITERAL;
+intPrime: INTEGER_LITERAL COMMA intPrime | INTEGER_LITERAL;
+boolPrime: BOOLEAN_LITERAL COMMA boolPrime | BOOLEAN_LITERAL;
+strPrime: STRING_LITERAL COMMA strPrime | STRING_LITERAL;
+idPrime: ID COMMA idPrime | ID;
 
 
 /*
@@ -200,8 +200,8 @@ STRING: 'string';
 THEN: 'then';
 FOR: 'for';
 RETURN: 'return';
-TRUE: 'true';
-FALSE: 'false';
+fragment TRUE: 'true';
+fragment FALSE: 'false';
 VOID: 'void';
 NIL: 'nil';
 THIS: 'this';
