@@ -47,7 +47,7 @@ attributeDecl: isFinal type attributeNameList SEMI;
 attributeNameList: attributeName COMMA attributeNameList | attributeName;
 
 isFinal: FINAL | ;
-attributeName: ID MEMBER_ASSIGN literals | ID;
+attributeName: ID ASSIGN expr0 | ID;
 /* === === === */
 
 /* === METHOD DECLARATION === */
@@ -120,12 +120,14 @@ methodInvocation: ID LPAREN exprNulist RPAREN;
 /* === === === */
 
 /* === BLOCK STATEMENT === */
-blockStatement: LBRACE stmtNulist RBRACE;
+blockStatement: LBRACE varDeclNulist stmtNulist RBRACE;
+
+varDeclNulist: varDecl varDeclNulist | ;
 
 stmtNulist: stmt stmtNulist | ;
 
-stmt: varDecl
-    | assignStmt
+stmt
+    : assignStmt
     | ifStmt
     | forStmt
     | breakStmt
@@ -233,7 +235,6 @@ GREATER_THAN_OR_EQUAL: '>=';
 
 // Assign
 ASSIGN: ':=';
-MEMBER_ASSIGN: '=';
 
 // Logical Operators
 LOGICAL_OR: '||';

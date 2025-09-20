@@ -31,7 +31,7 @@ def test_004():
 
 def test_005():
     """Test final attribute declaration"""
-    source = """class Constants { final float PI = 3.14159; static void main() {} }"""
+    source = """class Constants { final float PI := 3.14159; static void main() {} }"""
     expected = "success"
     assert Parser(source).parse() == expected
 
@@ -83,7 +83,7 @@ def test_009():
     """Test array declaration and access"""
     source = """class Test { 
         static void main() { 
-            int[3] arr = {1, 2, 3};
+            int[3] arr := {1, 2, 3};
             int first;
             first := arr[0];
             arr[1] := 42;
@@ -98,8 +98,8 @@ def test_010():
     source = """class Test { 
         static void main() { 
             string result;
-            result := "Hello" ^ " " ^ "World";
             Test obj;
+            result := "Hello" ^ " " ^ "World";
             obj := new Test();
         }
     }"""
@@ -109,8 +109,8 @@ def test_010():
 
 def test_011():
     """Test parser error: missing closing brace in class declaration"""
-    source = """class Test { int x = 1; """  # Thiếu dấu }
-    expected = "Error on line 1 col 24: <EOF>"
+    source = """class Test { int x := 1; """  # Thiếu dấu }
+    expected = "Error on line 1 col 25: <EOF>"
     assert Parser(source).parse() == expected
 
 def test_012():
@@ -189,7 +189,7 @@ def test_023():
 
 def test_024():
     """Test static final attribute"""
-    source = "class Test { static final int x = 1; }"
+    source = "class Test { static final int x := 1; }"
     expected = "success"
     assert Parser(source).parse() == expected
 
@@ -329,7 +329,7 @@ def test_046():
 def test_047():
     """Error: invalid assignment operator"""
     source = "class Test { void main() { x = 1; } }"
-    expected = "Error on line 1 col 29: ="
+    expected = "Error Token ="
     assert Parser(source).parse() == expected
 
 def test_048():
@@ -433,12 +433,12 @@ def test_066():
     assert Parser(source).parse() == expected
 
 def test_067():
-    source = "class T {final int x = 1;}"
+    source = "class T {final int x := 1;}"
     expected = "success"
     assert Parser(source).parse() == expected
 
 def test_068():
-    source = "class T {static final int x = 1;}"
+    source = "class T {static final int x := 1;}"
     expected = "success"
     assert Parser(source).parse() == expected
 
@@ -563,7 +563,7 @@ def test_092():
     assert Parser(source).parse() == expected
 
 def test_093():
-    source = "class T{int x=1;}"
+    source = "class T{int x:=1;}"
     expected = "success"
     assert Parser(source).parse() == expected
 
@@ -574,7 +574,7 @@ def test_094():
 
 def test_095():
     source = "class T{void f(){a=1;}}"
-    expected = "Error on line 1 col 18: ="
+    expected = "Error Token ="
     assert Parser(source).parse() == expected
 
 def test_096():
@@ -600,5 +600,25 @@ def test_099():
 def test_100():
     """ function or constructor? Test constructor """
     source = "class T{ f() {} }"
+    expected = "success"
+    assert Parser(source).parse() == expected
+
+def test_101():
+    source = "class T {void f() { a[3+x.foo(2)] := a[b[2]] + 3; } } "
+    expected = "success"
+    assert Parser(source).parse() == expected
+
+def test_102():
+    source = "class T {void f() { a := (new C()).get(); } } "
+    expected = "success"
+    assert Parser(source).parse() == expected
+
+def test_103():
+    source = "class T {void f() { T a := (new C()).get(); } } "
+    expected = "success"
+    assert Parser(source).parse() == expected
+
+def test_104():
+    source = "class T {void f() { T a := (c > d) || (d > b); } } "
     expected = "success"
     assert Parser(source).parse() == expected
