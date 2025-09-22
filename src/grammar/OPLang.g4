@@ -38,7 +38,7 @@ classDecl: CLASS ID classExtends LBRACE memberNulist RBRACE;
 
 classExtends: EXTENDS ID | ;
 memberNulist: member memberNulist | ;
-member: (isStatic (attributeDecl | methodDecl)) | constructors;
+member: (isStatic (attributeDecl | methodDecl)) | constructor;
 isStatic: STATIC | ;
 /* === === === */
 
@@ -62,11 +62,12 @@ isRef: AMPERSAND | ;
 /* === === === */
 
 /* === CONSTRUCTOR DECLARATION === */
-constructors: defConstructor
-            | copyConstructor
-            | customConstructor
-            | destructor
-            ;
+constructor
+    : defConstructor
+    | copyConstructor
+    | customConstructor
+    | destructor
+    ;
 
 defConstructor: ID LPAREN RPAREN blockStatement;
 copyConstructor: ID LPAREN ID 'other' RPAREN blockStatement;
@@ -76,32 +77,32 @@ destructor: TILDE ID LPAREN RPAREN blockStatement;
 /* === === === */
 
 /* === EXPRESSION === */
-expr0: expr1 CMP_WITH_OP expr1 | expr1;
+expr0: relationalExpr CMP_WITH_OP relationalExpr | relationalExpr;
 CMP_WITH_OP:  LESS_THAN | GREATER_THAN | LESS_THAN_OR_EQUAL | GREATER_THAN_OR_EQUAL;
 
-expr1: expr2 CMP_OP expr2 | expr2;
+relationalExpr: logicalExpr CMP_OP logicalExpr | logicalExpr;
 CMP_OP: EQUAL | NOT_EQUAL;
 
-expr2: expr2 AND_OR_OP expr3 | expr3;
+logicalExpr: logicalExpr AND_OR_OP addSubExpr | addSubExpr;
 AND_OR_OP: LOGICAL_AND | LOGICAL_OR;
 
-expr3: expr3 ADD_SUB_OP expr4 | expr4;
+addSubExpr: addSubExpr ADD_SUB_OP mulDivModExpr | mulDivModExpr;
 ADD_SUB_OP: PLUS | MINUS;
 
-expr4: expr4 MUL_DIV_MOD_OP expr5 | expr5;
+mulDivModExpr: mulDivModExpr MUL_DIV_MOD_OP strConcatExpr | strConcatExpr;
 MUL_DIV_MOD_OP: MULTIPLY | FLOAT_DIVISION | INTEGER_DIVISION | MODULO;
 
-expr5: expr5 STR_CONCAT_OP expr6 | expr6;
+strConcatExpr: strConcatExpr STR_CONCAT_OP logicalNotExpr | logicalNotExpr;
 STR_CONCAT_OP: STR_CONCAT;
 
-expr6: NOT expr6 | expr7;
+logicalNotExpr: NOT logicalNotExpr | unaryAddSubExpr;
 
-expr7: ADD_SUB_OP expr7 | expr8;
+unaryAddSubExpr: ADD_SUB_OP unaryAddSubExpr | arrayAccessExpr;
 
-expr8: expr8 arrayAccess | expr9;
+arrayAccessExpr: arrayAccessExpr arrayAccess | memberAccessExpr;
 arrayAccess: LBRACKET expr0 RBRACKET;
 
-expr9: expr9 DOT (methodInvocation | ID) | fact;
+memberAccessExpr: memberAccessExpr DOT (methodInvocation | ID) | fact;
 
 fact: literals
     | ID

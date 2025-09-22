@@ -4,6 +4,7 @@ This module re-exports AST utilities from the utils package.
 """
 
 from ..utils import *
+from .ast_generation import *
 
 __all__ = [
     # Base classes

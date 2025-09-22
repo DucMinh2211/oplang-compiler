@@ -1,5 +1,14 @@
 from src.astgen import ASTGeneration
+from utils import *
 
+class MyParser:
+    @staticmethod
+    def parse(input: str) -> OPLangParser.ProgramContext:
+        input_stream = InputStream(input)
+        lexer = OPLangLexer(input_stream)
+        token_stream = CommonTokenStream(lexer)
+        parser = OPLangParser(token_stream)
+        return parser.program()
 
 def test_001():
     """Test basic class declaration AST generation"""
@@ -127,3 +136,36 @@ def test_011():
     }"""
     expected = "Program([ClassDecl(TestClass, [DestructorDecl(~TestClass(), BlockStatement(stmts=[MethodInvocationStatement(MethodInvocation(PostfixExpression(Identifier(io).writeStrLn(StringLiteral('Object destroyed')))))]))])])"
     assert str(ASTGeneration().visitProgram(source)) == expected
+
+def test_012():
+    """Test final att"""
+    source = """
+        class T {
+            final int a;
+            float b;
+        }
+    """
+    expected = "Program([ClassDecl(T, [AttributeDecl(final PrimitiveType(int), [Attribute(a)]), AttributeDecl(PrimitiveType(float), [Attribute(b)])])])"
+    assert str(ASTGeneration().visitProgram(MyParser.parse(source))) == expected
+
+def test_013():
+    """Test array att"""
+    source = """
+        class T {
+            final int[3] a;
+        }
+        class C {}
+    """
+    expected = "Program([ClassDecl(T, [AttributeDecl(final ArrayType(int[3]), [Attribute(a)])]), ClassDecl(C, [])])"
+    assert str(ASTGeneration().visitProgram(MyParser.parse(source))) == expected
+
+def test_014():
+    """Test constructor"""
+    source = """
+        class T {
+            T(){}
+        }
+        class C {}
+    """
+    expected = "Program([ClassDecl(T, [ConstructorDecl(T([]), BlockStatement(stmts=[]))]), ClassDecl(C, [])])"
+    assert str(ASTGeneration().visitProgram(MyParser.parse(source))) == expected
