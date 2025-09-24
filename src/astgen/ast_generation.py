@@ -11,13 +11,13 @@ from src.utils.nodes import *
 
 
 class ASTGeneration(OPLangVisitor):
-    def visit(self, tree, o:Any=None) -> Any:
-        if o:
-            match type(tree):
-                case OPLangParser.AttributeDeclContext:
-                    self.visitAttributeDecl(tree, o)
-                case OPLangParser.MethodDeclContext:
-                    self.visitMethodDecl(tree, o)
+    # def visit(self, tree, o:Any=None) -> Any:
+    #     if o:
+    #         match type(tree):
+    #             case OPLangParser.AttributeDeclContext:
+    #                 self.visitAttributeDecl(tree, o)
+    #             case OPLangParser.MethodDeclContext:
+    #                 self.visitMethodDecl(tree, o)
         # match type(tree):
             # case OPLangParser.ProgramContext: 
             #     return self.visitProgram(tree)
@@ -43,7 +43,7 @@ class ASTGeneration(OPLangVisitor):
             #     return self.visitAttributeNameList(tree)
             # case OPLangParser.AttributeNameContext:
             #     return self.visitAttributeName(tree)
-        return super().visit(tree)
+        # return super().visit(tree)
 
     def visitProgram(self, ctx:OPLangParser.ProgramContext) -> Program:
         return Program(self.visit(ctx.classDeclList()))
@@ -71,16 +71,22 @@ class ASTGeneration(OPLangVisitor):
         return [self.visit(ctx.member())] + self.visit(ctx.memberNulist())
 
     def visitMember(self, ctx: OPLangParser.MemberContext) -> ConstructorDecl | AttributeDecl | MethodDecl:
-        is_static = True if ctx.isStatic() else False
         if ctx.getChildCount() == 1:
             return self.visit(ctx.constructor())
-        if ctx.attributeDecl():
-            return self.visit(ctx.attributeDecl(), is_static)
-        return self.visit(ctx.methodDecl(), is_static)
 
-    def visitAttributeDecl(self, ctx: OPLangParser.AttributeDeclContext, is_static:bool=False) -> AttributeDecl:
+        is_static = True if self.visit(ctx.isStatic()) else False
+        if ctx.attributeDecl():
+            att_decl: AttributeDecl = self.visit(ctx.attributeDecl())
+            att_decl.is_static = is_static
+            return att_decl
+
+        method_decl: MethodDecl = self.visit(ctx.methodDecl())
+        method_decl.is_static = is_static
+        return method_decl
+
+    def visitAttributeDecl(self, ctx: OPLangParser.AttributeDeclContext) -> AttributeDecl:
         return AttributeDecl(
-            is_static=is_static,
+            is_static=False,
             is_final=self.visit(ctx.isFinal()),
             attr_type=self.visit(ctx.type_()),
             attributes=self.visit(ctx.attributeNameList())
@@ -99,9 +105,9 @@ class ASTGeneration(OPLangVisitor):
             init_value=self.visit(ctx.expr0())
         )
 
-    def visitMethodDecl(self, ctx: OPLangParser.MethodDeclContext, is_static:bool=False) -> MethodDecl:
+    def visitMethodDecl(self, ctx: OPLangParser.MethodDeclContext) -> MethodDecl:
         return MethodDecl(
-            is_static=is_static,
+            is_static=False,
             name=ctx.ID().getText(),
             return_type=self.visit(ctx.type_()),
             params=self.visit(ctx.paramNulist()),
@@ -141,9 +147,17 @@ class ASTGeneration(OPLangVisitor):
                 statements=self.visit(ctx.stmtNulist())
         )
 
-    def visitVarDecl(self, ctx: OPLangParser.VarDeclContext):
-        # TODO: finish the method
+    def visitVarDeclNulist(self, ctx: OPLangParser.VarDeclNulistContext) -> list[VariableDecl]:
+        if ctx.varDecl():
+            return [self.visit(ctx.varDecl())] + self.visit(ctx.varDeclNulist())
         return []
+
+    def visitVarDecl(self, ctx: OPLangParser.VarDeclContext):
+        return VariableDecl(
+            is_final=self.visit(ctx.isFinal()),
+            var_type=self.visit(ctx.type_()),
+            variables=self.visit(ctx.attributeNameList()),
+        )
 
     def visitStmtNulist(self, ctx: OPLangParser.StmtNulistContext):
         # TODO: finish the method
