@@ -159,9 +159,13 @@ class ASTGeneration(OPLangVisitor):
             variables=self.visit(ctx.attributeNameList()),
         )
 
-    def visitStmtNulist(self, ctx: OPLangParser.StmtNulistContext):
-        # TODO: finish the method
-        return []
+    def visitStmtNulist(self, ctx: OPLangParser.StmtNulistContext) -> list[Statement]:
+        if not ctx.stmt(): return []
+        return [self.visit(ctx.stmt())] + self.visit(ctx.stmtNulist())
+
+    def visitStmt(self, ctx: OPLangParser.StmtContext) -> AssignmentStatement | IfStatement | ForStatement | BreakStatement | ContinueStatement | ReturnStatement | MethodInvocationStatement | BlockStatement:
+        # TODO: finish method
+        return self.visit(ctx.assignStmt())
 
     def visitType(self, ctx: OPLangParser.TypeContext) -> PrimitiveType | ArrayType:
         child = ctx.VOID()
