@@ -142,10 +142,10 @@ def test_012():
     source = """
         class T {
             final int a;
-            float b;
+            float b, c;
         }
     """
-    expected = "Program([ClassDecl(T, [AttributeDecl(final PrimitiveType(int), [Attribute(a)]), AttributeDecl(PrimitiveType(float), [Attribute(b)])])])"
+    expected = "Program([ClassDecl(T, [AttributeDecl(final PrimitiveType(int), [Attribute(a)]), AttributeDecl(PrimitiveType(float), [Attribute(b), Attribute(c)])])])"
     assert str(ASTGeneration().visitProgram(MyParser.parse(source))) == expected
 
 def test_013():
@@ -168,4 +168,15 @@ def test_014():
         class C {}
     """
     expected = "Program([ClassDecl(T, [ConstructorDecl(T([]), BlockStatement(stmts=[]))]), ClassDecl(C, [])])"
+    assert str(ASTGeneration().visitProgram(MyParser.parse(source))) == expected
+
+def test_015():
+    """Test methodDecl"""
+    source = """
+        class T {
+            void do_this(int a, b) {}
+        }
+        class C {}
+    """
+    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([Parameter(PrimitiveType(int) Identifier(a)), Parameter(PrimitiveType(int) Identifier(b))]), BlockStatement(stmts=[]))]), ClassDecl(C, [])])"
     assert str(ASTGeneration().visitProgram(MyParser.parse(source))) == expected

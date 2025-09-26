@@ -114,6 +114,19 @@ class ASTGeneration(OPLangVisitor):
             body=self.visit(ctx.blockStatement())
         )
 
+    def visitParamNulist(self, ctx: OPLangParser.ParamNulistContext) -> list[Parameter]:
+        if ctx.paramPrime():
+            return self.visit(ctx.paramPrime())
+        return []
+
+    def visitParamPrime(self, ctx: OPLangParser.ParamPrimeContext) -> list[Parameter]:
+        if not ctx.paramPrime():
+            return self.visit(ctx.param())
+        return self.visit(ctx.param()) + self.visit(ctx.paramPrime())
+
+    def visitParam(self, ctx: OPLangParser.ParamContext) -> list[Parameter]:
+        return list(map(lambda id: Parameter(self.visit(ctx.type_()), id), self.visit(ctx.idList())))
+
     def visitIsFinal(self, ctx: OPLangParser.IsFinalContext) -> bool:
         return ctx.FINAL()
 
@@ -164,8 +177,62 @@ class ASTGeneration(OPLangVisitor):
         return [self.visit(ctx.stmt())] + self.visit(ctx.stmtNulist())
 
     def visitStmt(self, ctx: OPLangParser.StmtContext) -> AssignmentStatement | IfStatement | ForStatement | BreakStatement | ContinueStatement | ReturnStatement | MethodInvocationStatement | BlockStatement:
-        # TODO: finish method
+        if ctx.ifStmt():
+            return self.visit(ctx.ifStmt())
+        elif ctx.forStmt():
+            return self.visit(ctx.forStmt())
+        if ctx.breakStmt():
+            return self.visit(ctx.breakStmt())
+        if ctx.continueStmt():
+            return self.visit(ctx.continueStmt())
+        if ctx.returnStmt():
+            return self.visit(ctx.returnStmt())
+        if ctx.methodInvoStmt():
+            return self.visit(ctx.methodInvoStmt())
+        if ctx.blockStatement():
+            return self.visit(ctx.blockStatement())
         return self.visit(ctx.assignStmt())
+
+    def visitAssignStmt(self, ctx: OPLangParser.AssignStmtContext) -> AssignmentStatement:
+        return AssignmentStatement(
+            lhs=self.visit(ctx.lhs()),
+            rhs=self.visit(ctx.expr0())
+        )
+
+    def visitIfStmt(self, ctx: OPLangParser.IfStmtContext) -> IfStatement:
+        else_stmt = ctx.stmt()[1] if len(ctx.stmt()) ==2 else None
+        return IfStatement(
+            condition=self.visit(ctx.expr0()),
+            then_stmt=self.visit(else_stmt),
+            else_stmt=self.visit(ctx.stmt())
+        )
+
+    def visitForStmt(self, ctx: OPLangParser.ForStmtContext) -> ForStatement:
+        dir = None
+        if ctx.TO():
+            dir = ctx.TO().getText()
+        else: dir = ctx.DOWNTO().getText()
+        return ForStatement(
+            variable=ctx.ID().getText(),
+            start_expr=self.visit(ctx.expr0()[0]),
+            direction=dir,
+            end_expr=self.visit(ctx.expr0()[1]),
+            body=self.visit(ctx.stmt())
+        )
+
+    def visitBreakStmt(self, ctx: OPLangParser.BreakStmtContext) -> BreakStatement:
+        return BreakStatement()
+
+    def visitContinueStmt(self, ctx: OPLangParser.ContinueStmtContext) -> ContinueStatement:
+        return ContinueStatement()
+
+    def visitReturnStmt(self, ctx: OPLangParser.ReturnStmtContext) -> ReturnStatement:
+        return ReturnStatement(value=self.visit(ctx.expr0()))
+
+    def visitMethodInvoStmt(self, ctx: OPLangParser.MethodInvoStmtContext):
+        return MethodInvocationStatement(
+            method_invocation=self.visit(ctx.methodInvocation())
+        )
 
     def visitType(self, ctx: OPLangParser.TypeContext) -> PrimitiveType | ArrayType:
         child = ctx.VOID()
@@ -180,6 +247,8 @@ class ASTGeneration(OPLangVisitor):
             child = ctx.STRING()
         elif ctx.ID():
             child = ctx.ID()
+        elif ctx.VOID():
+            return PrimitiveType(ctx.VOID().getText())
 
         arr_decl: OPLangParser.ArrayDeclContext = ctx.arrayDecl()
         # handle PrimitiveType
@@ -194,3 +263,7 @@ class ASTGeneration(OPLangVisitor):
                      .INTEGER_LITERAL().getText())
         )
 
+    def visitIdList(self, ctx: OPLangParser.IdListContext) -> list[Identifier]:
+        if not ctx.idList():
+            return [Identifier(ctx.ID().getText())]
+        return [Identifier(ctx.ID().getText())] + self.visit(ctx.idList())
