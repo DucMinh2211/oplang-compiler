@@ -599,7 +599,7 @@ def test_099():
 
 def test_100():
     """ function or constructor? Test constructor """
-    source = "class T{ f() {} }"
+    source = "class T{ f() { int & a := 1;} }"
     expected = "success"
     assert Parser(source).parse() == expected
 

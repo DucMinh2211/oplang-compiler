@@ -163,9 +163,34 @@ def test_015():
     """Test methodDecl"""
     source = """
         class T {
+            void do_this() {}
+        }
+        class C {}
+    """
+    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([]), BlockStatement(stmts=[]))]), ClassDecl(C, [])])"
+    assert str(ASTGenerator(source).generate()) == expected
+
+def test_016():
+    """Test methodDecl with params"""
+    source = """
+        class T {
             void do_this(int a, b) {}
         }
         class C {}
     """
-    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([Parameter(PrimitiveType(int) Identifier(a)), Parameter(PrimitiveType(int) Identifier(b))]), BlockStatement(stmts=[]))]), ClassDecl(C, [])])"
+    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([Parameter(PrimitiveType(int) a), Parameter(PrimitiveType(int) b)]), BlockStatement(stmts=[]))]), ClassDecl(C, [])])"
+    assert str(ASTGenerator(source).generate()) == expected
+
+def test_017():
+    """Test break, continue stmt"""
+    source = """
+        class T {
+            void do_this() {
+                break;
+                continue;
+            }
+        }
+        class C {}
+    """
+    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([]), BlockStatement(stmts=[BreakStatement(), ContinueStatement()]))]), ClassDecl(C, [])])"
     assert str(ASTGenerator(source).generate()) == expected

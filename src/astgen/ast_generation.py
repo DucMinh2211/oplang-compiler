@@ -125,7 +125,7 @@ class ASTGeneration(OPLangVisitor):
         return self.visit(ctx.param()) + self.visit(ctx.paramPrime())
 
     def visitParam(self, ctx: OPLangParser.ParamContext) -> list[Parameter]:
-        return list(map(lambda id: Parameter(self.visit(ctx.type_()), id), self.visit(ctx.idList())))
+        return list(map(lambda id: Parameter(self.visit(ctx.type_()), id.name), self.visit(ctx.idList())))
 
     def visitIsFinal(self, ctx: OPLangParser.IsFinalContext) -> bool:
         return ctx.FINAL()
@@ -176,7 +176,7 @@ class ASTGeneration(OPLangVisitor):
         if not ctx.stmt(): return []
         return [self.visit(ctx.stmt())] + self.visit(ctx.stmtNulist())
 
-    def visitStmt(self, ctx: OPLangParser.StmtContext) -> AssignmentStatement | IfStatement | ForStatement | BreakStatement | ContinueStatement | ReturnStatement | MethodInvocationStatement | BlockStatement:
+    def visitStmt(self, ctx: OPLangParser.StmtContext) -> Statement:
         if ctx.ifStmt():
             return self.visit(ctx.ifStmt())
         elif ctx.forStmt():
@@ -234,7 +234,26 @@ class ASTGeneration(OPLangVisitor):
             method_invocation=self.visit(ctx.methodInvocation())
         )
 
-    def visitType(self, ctx: OPLangParser.TypeContext) -> PrimitiveType | ArrayType:
+    def visitExprNulist(self, ctx: OPLangParser.ExprNulistContext) -> list[Expr]:
+        if not ctx.exprPrime():
+            return []
+        return self.visitExprPrime(ctx.exprPrime())
+
+    def visitExprPrime(self, ctx: OPLangParser.ExprPrimeContext):
+        if not ctx.exprPrime():
+            return [self.visit(ctx.expr0())]
+        return [self.visit(ctx.expr0())] + self.visit(ctx.exprPrime())
+
+    def visitExpr0(self, ctx: OPLangParser.Expr0Context) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.relationalExpr())
+        return BinaryOp(
+            left=self.visit(ctx.relationalExpr()[0]),
+            operator=ctx.CMP_WITH_OP().getText(),
+            right=self.visit(ctx.relationalExpr()[1])
+        )
+
+    def visitType(self, ctx: OPLangParser.TypeContext) -> Type:
         child = ctx.VOID()
 
         if ctx.INT():
