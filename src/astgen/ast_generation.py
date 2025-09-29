@@ -253,6 +253,104 @@ class ASTGeneration(OPLangVisitor):
             right=self.visit(ctx.relationalExpr()[1])
         )
 
+    def visitRelationalExpr(self, ctx: OPLangParser.RelationalExprContext) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.logicalExpr())
+        return BinaryOp(
+            left=self.visit(ctx.logicalExpr()[0]),
+            operator=ctx.CMP_OP().getText(),
+            right=self.visit(ctx.logicalExpr()[1])
+        )
+
+    def visitLogicalExpr(self, ctx: OPLangParser.LogicalExprContext) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.addSubExpr())
+        return BinaryOp(
+            left=self.visit(ctx.logicalExpr()[0]),
+            operator=ctx.AND_OR_OP().getText(),
+            right=self.visit(ctx.addSubExpr()[1])
+        )
+
+    def visitAddSubExpr(self, ctx: OPLangParser.AddSubExprContext) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.mulDivModExpr())
+        return BinaryOp(
+            left=self.visit(ctx.addSubExpr()[0]),
+            operator=ctx.ADD_SUB_OP().getText(),
+            right=self.visit(ctx.mulDivModExpr()[1])
+        )
+
+    def visitMulDivModExpr(self, ctx: OPLangParser.MulDivModExprContext) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.strConcatExpr())
+        return BinaryOp(
+            left=self.visit(ctx.mulDivModExpr()[0]),
+            operator=ctx.MUL_DIV_MOD_OP().getText(),
+            right=self.visit(ctx.strConcatExpr()[1])
+        )
+
+    def visitStrConcatExpr(self, ctx: OPLangParser.StrConcatExprContext) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.logicalNotExpr())
+        return BinaryOp(
+            left=self.visit(ctx.strConcatExpr()[0]),
+            operator=ctx.STR_CONCAT_OP().getText(),
+            right=self.visit(ctx.logicalNotExpr()[1])
+        )
+
+    def visitLogicalNotExpr(self, ctx: OPLangParser.LogicalNotExprContext) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.unaryAddSubExpr())
+        return UnaryOp(
+            operator=ctx.NOT().getText(),
+            operand=self.visit(ctx.logicalNotExpr())
+        )
+
+    def visitUnaryAddSubExpr(self, ctx: OPLangParser.UnaryAddSubExprContext) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.arrayAccessExpr())
+        return UnaryOp(
+            operator=ctx.ADD_SUB_OP().getText(),
+            operand=self.visit(ctx.unaryAddSubExpr())
+        )
+
+    def visitArrayAccessExpr(self, ctx: OPLangParser.ArrayAccessExprContext) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.memberAccessExpr())
+        return PostfixExpression(
+            primary=self.visit(ctx.arrayAccess()),
+            postfix_ops=self.visit(ctx.arrayAccessExpr())
+        )
+
+    def visitMemberAccessExpr(self, ctx: OPLangParser.MemberAccessExprContext) -> Expr:
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.fact())
+
+        child = self.visit(ctx.methodInvocation()) if ctx.methodInvocation() else Identifier(name=ctx.ID().getText())
+        return PostfixExpression(
+            primary=child,
+            postfix_ops=self.visit(ctx.memberAccessExpr())
+        )
+
+    def visitFact(self, ctx: OPLangParser.FactContext)-> Expr:
+        if ctx.ID():
+            return Identifier(name=ctx.ID().getText())
+        elif ctx.THIS():
+            return ThisExpression()
+        elif ctx.methodInvocation():
+            return self.visit(ctx.methodInvocation())
+        elif ctx.objCreation():
+            return self.visit(ctx.objCreation())
+        elif ctx.expr0():
+            return self.visit(ctx.expr0())
+
+        assert ctx.NIL()
+        return NilLiteral()
+
+
+    def visitArrayAccess(self, ctx: OPLangParser.ArrayAccessContext) -> Expr:
+        return self.visit(ctx.expr0())
+
     def visitType(self, ctx: OPLangParser.TypeContext) -> Type:
         child = ctx.VOID()
 
