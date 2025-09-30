@@ -138,10 +138,12 @@ stmt
     | blockStatement
     ;
 
-varDecl: isFinal typeRef attributeNameList SEMI;
+varDecl: isFinal typeRef variableNameList SEMI;
+variableNameList: variableName COMMA variableNameList | variableName;
+variableName: ID ASSIGN expr0 | ID;
 
 assignStmt: lhs ASSIGN expr0 SEMI;
-lhs: arrayAccessExpr | ID;
+lhs: ID | arrayAccessExpr;
 
 ifStmt: IF expr0 THEN stmt (ELSE stmt | );
 forStmt: FOR ID /*(scalar var)*/ ASSIGN expr0 (TO | DOWNTO) expr0 DO stmt;

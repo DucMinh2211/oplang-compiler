@@ -145,7 +145,7 @@ def test_013():
         }
         class C {}
     """
-    expected = "Program([ClassDecl(T, [AttributeDecl(final ArrayType(int[3]), [Attribute(a)])]), ClassDecl(C, [])])"
+    expected = "Program([ClassDecl(T, [AttributeDecl(final ArrayType(PrimitiveType(int)[3]), [Attribute(a)])]), ClassDecl(C, [])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_014():
@@ -204,7 +204,7 @@ def test_018():
             }
         }
     """
-    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([]), BlockStatement(stmts=[AssignmentStatement(PostfixLHS(Identifier(a)) := Identifier(b))]))])])"
+    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([]), BlockStatement(stmts=[AssignmentStatement(IdLHS(a) := Identifier(b))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_019():
@@ -215,4 +215,16 @@ def test_019():
         }
     """
     expected = "Program([ClassDecl(T, [AttributeDecl(PrimitiveType(int), [Attribute(c = BinaryOp(Identifier(a), +, Identifier(b)))])])])"
+    assert str(ASTGenerator(source).generate()) == expected
+
+def test_020():
+    """Test simple recursive this expr"""
+    source = """
+        class T {
+            void do_this() {
+                this.a.b := this.a;
+            }
+        }
+    """
+    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([]), BlockStatement(stmts=[AssignmentStatement(PostfixLHS(PostfixExpression(ThisExpression(this).b.a)) := PostfixExpression(ThisExpression(this).a))]))])])"
     assert str(ASTGenerator(source).generate()) == expected

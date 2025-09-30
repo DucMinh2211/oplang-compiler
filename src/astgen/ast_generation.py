@@ -136,7 +136,18 @@ class ASTGeneration(OPLangVisitor):
         return VariableDecl(
             is_final=self.visit(ctx.isFinal()),
             var_type=self.visit(ctx.typeRef()),
-            variables=self.visit(ctx.attributeNameList()),
+            variables=self.visit(ctx.variableNameList()),
+        )
+
+    def visitVariableNameList(self, ctx: OPLangParser.VariableNameListContext) -> list[Variable]:
+        if ctx.getChildCount() == 1:
+            return [self.visit(ctx.variableName())]
+        return [self.visit(ctx.variableName())] + self.visit(ctx.variableNameList())
+
+    def visitVariableName(self, ctx: OPLangParser.VariableNameContext):
+        return Variable(
+            name=ctx.ID().getText(),
+            init_value=self.visit(ctx.expr0()) if ctx.expr0() else None
         )
 
     def visitStmtNulist(self, ctx: OPLangParser.StmtNulistContext) -> list[Statement]:
@@ -173,11 +184,12 @@ class ASTGeneration(OPLangVisitor):
         return PostfixLHS(postfix_expr=self.visit(ctx.arrayAccessExpr()))
 
     def visitIfStmt(self, ctx: OPLangParser.IfStmtContext) -> IfStatement:
-        else_stmt = ctx.stmt()[1] if len(ctx.stmt()) ==2 else None
+        then_stmt = self.visit(ctx.stmt(0))
+        else_stmt = self.visit(ctx.stmt(1)) if len(ctx.stmt()) > 1 else None
         return IfStatement(
             condition=self.visit(ctx.expr0()),
-            then_stmt=self.visit(else_stmt),
-            else_stmt=self.visit(ctx.stmt())
+            then_stmt=then_stmt,
+            else_stmt=else_stmt
         )
 
     def visitForStmt(self, ctx: OPLangParser.ForStmtContext) -> ForStatement:
@@ -287,20 +299,34 @@ class ASTGeneration(OPLangVisitor):
             operand=self.visit(ctx.unaryAddSubExpr())
         )
 
-    def visitArrayAccessExpr(self, ctx: OPLangParser.ArrayAccessExprContext) -> PostfixExpression | list[Expr]:
+    def visitArrayAccessExpr(self, ctx: OPLangParser.ArrayAccessExprContext) -> PostfixExpression | Expr:
         if ctx.getChildCount() == 1:
             return self.visit(ctx.memberAccessExpr())
+
+        child = ArrayAccess(index=self.visit(ctx.arrayAccess()))
+        primary = self.visit(ctx.arrayAccessExpr())
+        if type(primary) == PostfixExpression:
+            return PostfixExpression(
+                primary=primary.primary,
+                postfix_ops=[child] + primary.postfix_ops
+            )
         return PostfixExpression(
-            primary=self.visit(ctx.arrayAccessExpr()),
-            postfix_ops=self.visit(ctx.arrayAccess())
+            primary=primary,
+            postfix_ops=[child]
         )
 
-    def visitMemberAccessExpr(self, ctx: OPLangParser.MemberAccessExprContext) -> PostfixExpression | list[Expr]:
+    def visitMemberAccessExpr(self, ctx: OPLangParser.MemberAccessExprContext) -> PostfixExpression | Expr | list[PostfixOp]:
         if ctx.getChildCount() == 1:
             return self.visit(ctx.fact())
 
         child = self.visit(ctx.methodInvocation()) if ctx.methodInvocation() else MemberAccess(member_name=ctx.ID().getText())
         primary = self.visit(ctx.memberAccessExpr())
+        if type(primary) == PostfixExpression:
+            assert isinstance(child, PostfixOp), "child not PostfixOp but: " + str(type(child))
+            return PostfixExpression(
+                primary=primary.primary,
+                postfix_ops=[child] + primary.postfix_ops
+            )
         return PostfixExpression(
             primary=primary,
             postfix_ops=[child]
@@ -322,6 +348,18 @@ class ASTGeneration(OPLangVisitor):
 
         assert ctx.NIL(), "ctx not NIL"
         return NilLiteral()
+
+    def visitLiterals(self, ctx:OPLangParser.LiteralsContext):
+        if ctx.INTEGER_LITERAL():
+            return IntLiteral(value=int(ctx.INTEGER_LITERAL().getText()))
+        elif ctx.FLOAT_LITERAL():
+            return FloatLiteral(value=float(ctx.FLOAT_LITERAL().getText()))
+        elif ctx.BOOLEAN_LITERAL():
+            return BoolLiteral(value=True if ctx.BOOLEAN_LITERAL().getText() == "true" else False)
+        elif ctx.STRING_LITERAL():
+            return StringLiteral(value=ctx.STRING_LITERAL().getText())
+        else:
+            return self.visit(ctx.arrayLiteral())
 
 
     def visitArrayAccess(self, ctx: OPLangParser.ArrayAccessContext) -> Expr:
@@ -354,7 +392,7 @@ class ASTGeneration(OPLangVisitor):
         # handle ArrayType
         assert type(child) != ctx.VOID()
         return ArrayType(
-            element_type=child.getText(),
+            element_type=PrimitiveType(child.getText()),
             size=int(arr_decl
                      .INTEGER_LITERAL().getText())
         )
