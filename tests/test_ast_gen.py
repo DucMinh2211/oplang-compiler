@@ -194,3 +194,25 @@ def test_017():
     """
     expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([]), BlockStatement(stmts=[BreakStatement(), ContinueStatement()]))]), ClassDecl(C, [])])"
     assert str(ASTGenerator(source).generate()) == expected
+
+def test_018():
+    """Test VarDecl"""
+    source = """
+        class T {
+            void do_this() {
+                a := b;
+            }
+        }
+    """
+    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([]), BlockStatement(stmts=[AssignmentStatement(PostfixLHS(Identifier(a)) := Identifier(b))]))])])"
+    assert str(ASTGenerator(source).generate()) == expected
+
+def test_019():
+    """Test simple expr"""
+    source = """
+        class T {
+            int c := a + b;
+        }
+    """
+    expected = "Program([ClassDecl(T, [AttributeDecl(PrimitiveType(int), [Attribute(c = BinaryOp(Identifier(a), +, Identifier(b)))])])])"
+    assert str(ASTGenerator(source).generate()) == expected

@@ -619,6 +619,6 @@ def test_103():
     assert Parser(source).parse() == expected
 
 def test_104():
-    source = "class T {void f() { T a := (c > d) || (d > b); } } "
+    source = "class T {void f() { T a := (c > d) || (d > b); a := d; } } "
     expected = "success"
     assert Parser(source).parse() == expected

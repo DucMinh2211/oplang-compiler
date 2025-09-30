@@ -11,39 +11,6 @@ from src.utils.nodes import *
 
 
 class ASTGeneration(OPLangVisitor):
-    # def visit(self, tree, o:Any=None) -> Any:
-    #     if o:
-    #         match type(tree):
-    #             case OPLangParser.AttributeDeclContext:
-    #                 self.visitAttributeDecl(tree, o)
-    #             case OPLangParser.MethodDeclContext:
-    #                 self.visitMethodDecl(tree, o)
-        # match type(tree):
-            # case OPLangParser.ProgramContext: 
-            #     return self.visitProgram(tree)
-            # case OPLangParser.ClassDeclListContext: 
-            #     return self.visitClassDeclList(tree)
-            # case OPLangParser.ClassDeclContext:
-            #     return self.visitClassDecl(tree)
-            # case OPLangParser.ClassExtendsContext:
-            #     return self.visitClassExtends(tree)
-            # case OPLangParser.MemberNulistContext:
-            #     return self.visitMemberNulist(tree)
-            # case OPLangParser.MemberContext:
-            #     return self.visitMember(tree)
-            # case OPLangParser.AttributeDeclContext:
-            #     return self.visitAttributeDecl(tree, o)
-            # case OPLangParser.MethodDeclContext:
-            #     return self.visitMethodDecl(tree)
-            # case OPLangParser.IsStaticContext:
-            #     return self.visitIsStatic(tree)
-            # case OPLangParser.IsFinalContext:
-            #     return self.visitIsFinal(tree)
-            # case OPLangParser.AttributeNameListContext:
-            #     return self.visitAttributeNameList(tree)
-            # case OPLangParser.AttributeNameContext:
-            #     return self.visitAttributeName(tree)
-        # return super().visit(tree)
 
     def visitProgram(self, ctx:OPLangParser.ProgramContext) -> Program:
         return Program(self.visit(ctx.classDeclList()))
@@ -63,7 +30,7 @@ class ASTGeneration(OPLangVisitor):
     def visitClassExtends(self, ctx: OPLangParser.ClassExtendsContext) -> Optional[Identifier]:
         if ctx.getChildCount() == 0:
             return None
-        return self.visit(ctx.ID())
+        return ctx.ID().getText()
 
     def visitMemberNulist(self, ctx: OPLangParser.MemberNulistContext) -> list[AttributeDecl | MethodDecl]:
         if ctx.getChildCount() == 0:
@@ -165,10 +132,10 @@ class ASTGeneration(OPLangVisitor):
             return [self.visit(ctx.varDecl())] + self.visit(ctx.varDeclNulist())
         return []
 
-    def visitVarDecl(self, ctx: OPLangParser.VarDeclContext):
+    def visitVarDecl(self, ctx: OPLangParser.VarDeclContext) -> VariableDecl:
         return VariableDecl(
             is_final=self.visit(ctx.isFinal()),
-            var_type=self.visit(ctx.type_()),
+            var_type=self.visit(ctx.typeRef()),
             variables=self.visit(ctx.attributeNameList()),
         )
 
@@ -181,16 +148,17 @@ class ASTGeneration(OPLangVisitor):
             return self.visit(ctx.ifStmt())
         elif ctx.forStmt():
             return self.visit(ctx.forStmt())
-        if ctx.breakStmt():
+        elif ctx.breakStmt():
             return self.visit(ctx.breakStmt())
-        if ctx.continueStmt():
+        elif ctx.continueStmt():
             return self.visit(ctx.continueStmt())
-        if ctx.returnStmt():
+        elif ctx.returnStmt():
             return self.visit(ctx.returnStmt())
-        if ctx.methodInvoStmt():
+        elif ctx.methodInvoStmt():
             return self.visit(ctx.methodInvoStmt())
-        if ctx.blockStatement():
+        elif ctx.blockStatement():
             return self.visit(ctx.blockStatement())
+        assert ctx.assignStmt()
         return self.visit(ctx.assignStmt())
 
     def visitAssignStmt(self, ctx: OPLangParser.AssignStmtContext) -> AssignmentStatement:
@@ -198,6 +166,11 @@ class ASTGeneration(OPLangVisitor):
             lhs=self.visit(ctx.lhs()),
             rhs=self.visit(ctx.expr0())
         )
+
+    def visitLhs(self, ctx: OPLangParser.LhsContext) -> LHS:
+        if not ctx.arrayAccessExpr():
+            return IdLHS(name=ctx.ID().getText())
+        return PostfixLHS(postfix_expr=self.visit(ctx.arrayAccessExpr()))
 
     def visitIfStmt(self, ctx: OPLangParser.IfStmtContext) -> IfStatement:
         else_stmt = ctx.stmt()[1] if len(ctx.stmt()) ==2 else None
@@ -246,7 +219,7 @@ class ASTGeneration(OPLangVisitor):
 
     def visitExpr0(self, ctx: OPLangParser.Expr0Context) -> Expr:
         if ctx.getChildCount() == 1:
-            return self.visit(ctx.relationalExpr())
+            return self.visit(ctx.relationalExpr()[0])
         return BinaryOp(
             left=self.visit(ctx.relationalExpr()[0]),
             operator=ctx.CMP_WITH_OP().getText(),
@@ -255,7 +228,7 @@ class ASTGeneration(OPLangVisitor):
 
     def visitRelationalExpr(self, ctx: OPLangParser.RelationalExprContext) -> Expr:
         if ctx.getChildCount() == 1:
-            return self.visit(ctx.logicalExpr())
+            return self.visit(ctx.logicalExpr()[0])
         return BinaryOp(
             left=self.visit(ctx.logicalExpr()[0]),
             operator=ctx.CMP_OP().getText(),
@@ -266,36 +239,36 @@ class ASTGeneration(OPLangVisitor):
         if ctx.getChildCount() == 1:
             return self.visit(ctx.addSubExpr())
         return BinaryOp(
-            left=self.visit(ctx.logicalExpr()[0]),
+            left=self.visit(ctx.logicalExpr()),
             operator=ctx.AND_OR_OP().getText(),
-            right=self.visit(ctx.addSubExpr()[1])
+            right=self.visit(ctx.addSubExpr())
         )
 
     def visitAddSubExpr(self, ctx: OPLangParser.AddSubExprContext) -> Expr:
         if ctx.getChildCount() == 1:
             return self.visit(ctx.mulDivModExpr())
         return BinaryOp(
-            left=self.visit(ctx.addSubExpr()[0]),
+            left=self.visit(ctx.addSubExpr()),
             operator=ctx.ADD_SUB_OP().getText(),
-            right=self.visit(ctx.mulDivModExpr()[1])
+            right=self.visit(ctx.mulDivModExpr())
         )
 
     def visitMulDivModExpr(self, ctx: OPLangParser.MulDivModExprContext) -> Expr:
         if ctx.getChildCount() == 1:
             return self.visit(ctx.strConcatExpr())
         return BinaryOp(
-            left=self.visit(ctx.mulDivModExpr()[0]),
+            left=self.visit(ctx.mulDivModExpr()),
             operator=ctx.MUL_DIV_MOD_OP().getText(),
-            right=self.visit(ctx.strConcatExpr()[1])
+            right=self.visit(ctx.strConcatExpr())
         )
 
     def visitStrConcatExpr(self, ctx: OPLangParser.StrConcatExprContext) -> Expr:
         if ctx.getChildCount() == 1:
             return self.visit(ctx.logicalNotExpr())
         return BinaryOp(
-            left=self.visit(ctx.strConcatExpr()[0]),
+            left=self.visit(ctx.strConcatExpr()),
             operator=ctx.STR_CONCAT_OP().getText(),
-            right=self.visit(ctx.logicalNotExpr()[1])
+            right=self.visit(ctx.logicalNotExpr())
         )
 
     def visitLogicalNotExpr(self, ctx: OPLangParser.LogicalNotExprContext) -> Expr:
@@ -314,22 +287,23 @@ class ASTGeneration(OPLangVisitor):
             operand=self.visit(ctx.unaryAddSubExpr())
         )
 
-    def visitArrayAccessExpr(self, ctx: OPLangParser.ArrayAccessExprContext) -> Expr:
+    def visitArrayAccessExpr(self, ctx: OPLangParser.ArrayAccessExprContext) -> PostfixExpression | list[Expr]:
         if ctx.getChildCount() == 1:
             return self.visit(ctx.memberAccessExpr())
         return PostfixExpression(
-            primary=self.visit(ctx.arrayAccess()),
-            postfix_ops=self.visit(ctx.arrayAccessExpr())
+            primary=self.visit(ctx.arrayAccessExpr()),
+            postfix_ops=self.visit(ctx.arrayAccess())
         )
 
-    def visitMemberAccessExpr(self, ctx: OPLangParser.MemberAccessExprContext) -> Expr:
+    def visitMemberAccessExpr(self, ctx: OPLangParser.MemberAccessExprContext) -> PostfixExpression | list[Expr]:
         if ctx.getChildCount() == 1:
             return self.visit(ctx.fact())
 
-        child = self.visit(ctx.methodInvocation()) if ctx.methodInvocation() else Identifier(name=ctx.ID().getText())
+        child = self.visit(ctx.methodInvocation()) if ctx.methodInvocation() else MemberAccess(member_name=ctx.ID().getText())
+        primary = self.visit(ctx.memberAccessExpr())
         return PostfixExpression(
-            primary=child,
-            postfix_ops=self.visit(ctx.memberAccessExpr())
+            primary=primary,
+            postfix_ops=[child]
         )
 
     def visitFact(self, ctx: OPLangParser.FactContext)-> Expr:
@@ -343,8 +317,10 @@ class ASTGeneration(OPLangVisitor):
             return self.visit(ctx.objCreation())
         elif ctx.expr0():
             return self.visit(ctx.expr0())
+        elif ctx.literals():
+            return (self.visit(ctx.literals()))
 
-        assert ctx.NIL()
+        assert ctx.NIL(), "ctx not NIL"
         return NilLiteral()
 
 

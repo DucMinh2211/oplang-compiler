@@ -138,11 +138,10 @@ stmt
     | blockStatement
     ;
 
-varDecl: isFinal type attributeNameList SEMI;
+varDecl: isFinal typeRef attributeNameList SEMI;
 
 assignStmt: lhs ASSIGN expr0 SEMI;
-lhs: idOrRef arrayAccess | idOrRef;
-idOrRef: ID | THIS DOT ID | ID DOT ID;
+lhs: arrayAccessExpr | ID;
 
 ifStmt: IF expr0 THEN stmt (ELSE stmt | );
 forStmt: FOR ID /*(scalar var)*/ ASSIGN expr0 (TO | DOWNTO) expr0 DO stmt;
