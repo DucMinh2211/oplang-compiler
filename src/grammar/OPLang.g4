@@ -43,7 +43,7 @@ isStatic: STATIC | ;
 /* === === === */
 
 /* === ATTRIBUTE DECLARATION === */
-attributeDecl: isFinal type attributeNameList SEMI;
+attributeDecl: isFinal typeRef attributeNameList SEMI;
 attributeNameList: attributeName COMMA attributeNameList | attributeName;
 
 isFinal: FINAL | ;
@@ -51,14 +51,14 @@ attributeName: ID ASSIGN expr0 | ID;
 /* === === === */
 
 /* === METHOD DECLARATION === */
-methodDecl: type isRef ID LPAREN paramNulist RPAREN blockStatement;
+methodDecl: typeRef ID LPAREN paramNulist RPAREN blockStatement;
 
 paramNulist: paramPrime | ;
 paramPrime: param SEMI paramPrime | param;
-param: type isRef idList;
+param: typeRef idList;
 idList: ID COMMA idList | ID;
 
-isRef: AMPERSAND | ;
+typeRef: type AMPERSAND | type;
 /* === === === */
 
 /* === CONSTRUCTOR DECLARATION === */

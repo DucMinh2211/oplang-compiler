@@ -88,7 +88,7 @@ class ASTGeneration(OPLangVisitor):
         return AttributeDecl(
             is_static=False,
             is_final=self.visit(ctx.isFinal()),
-            attr_type=self.visit(ctx.type_()),
+            attr_type=self.visit(ctx.typeRef()),
             attributes=self.visit(ctx.attributeNameList())
         )
 
@@ -109,7 +109,7 @@ class ASTGeneration(OPLangVisitor):
         return MethodDecl(
             is_static=False,
             name=ctx.ID().getText(),
-            return_type=self.visit(ctx.type_()),
+            return_type=self.visit(ctx.typeRef()),
             params=self.visit(ctx.paramNulist()),
             body=self.visit(ctx.blockStatement())
         )
@@ -125,7 +125,7 @@ class ASTGeneration(OPLangVisitor):
         return self.visit(ctx.param()) + self.visit(ctx.paramPrime())
 
     def visitParam(self, ctx: OPLangParser.ParamContext) -> list[Parameter]:
-        return list(map(lambda id: Parameter(self.visit(ctx.type_()), id.name), self.visit(ctx.idList())))
+        return list(map(lambda id: Parameter(self.visit(ctx.typeRef()), id.name), self.visit(ctx.idList())))
 
     def visitIsFinal(self, ctx: OPLangParser.IsFinalContext) -> bool:
         return ctx.FINAL()
@@ -351,7 +351,10 @@ class ASTGeneration(OPLangVisitor):
     def visitArrayAccess(self, ctx: OPLangParser.ArrayAccessContext) -> Expr:
         return self.visit(ctx.expr0())
 
-    def visitType(self, ctx: OPLangParser.TypeContext) -> Type:
+    def visitTypeRef(self, ctx: OPLangParser.TypeRefContext) -> ReferenceType:
+        return ReferenceType(self.visit(ctx.type_())) if ctx.AMPERSAND() else self.visit(ctx.type_())
+
+    def visitType(self, ctx: OPLangParser.TypeContext) -> PrimitiveType | ArrayType:
         child = ctx.VOID()
 
         if ctx.INT():
