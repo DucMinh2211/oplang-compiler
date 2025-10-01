@@ -13,6 +13,7 @@ from src.utils.nodes import *
 class ASTGeneration(OPLangVisitor):
 
     def visitProgram(self, ctx:OPLangParser.ProgramContext) -> Program:
+        self._classes: list[str] = []
         return Program(self.visit(ctx.classDeclList()))
 
     def visitClassDeclList(self, ctx: OPLangParser.ClassDeclListContext) -> list[ClassDecl]:
@@ -232,7 +233,7 @@ class ASTGeneration(OPLangVisitor):
 
         if ctx.ID(): # e.g., ID.methodInvocation()
             lhs_name = ctx.ID().getText()
-            if lhs_name == "io" and method_call.method_name == "writeIntLn": # Special case for test_007
+            if lhs_name == "io" or lhs_name in self._classes: # All io methods are static
                 return MethodInvocationStatement(
                     method_invocation=StaticMethodInvocation(
                         class_name=lhs_name,
@@ -240,7 +241,7 @@ class ASTGeneration(OPLangVisitor):
                         args=method_call.args
                     )
                 )
-            else: # General case for ID.methodInvocation() (e.g., test_011's io.writeStrLn)
+            else: # General case for ID.methodInvocation() (instance method call)
                 lhs = Identifier(lhs_name)
                 expr = PostfixExpression(primary=lhs, postfix_ops=[method_call])
                 return MethodInvocationStatement(method_invocation=MethodInvocation(postfix_expr=expr))
@@ -430,6 +431,8 @@ class ASTGeneration(OPLangVisitor):
             is_class_type = True
         
         element_type = ClassType(type_name) if is_class_type else PrimitiveType(type_name)
+
+        if is_class_type: self._classes.append(type_name)
 
         arr_decl: OPLangParser.ArrayDeclContext = ctx.arrayDecl()
         if arr_decl.getChildCount() == 0:
