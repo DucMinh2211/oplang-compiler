@@ -158,7 +158,7 @@ arrayDecl: LBRACKET INTEGER_LITERAL RBRACKET | ;
 
 literals: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL | arrayLiteral;
 
-arrayLiteral: floatArray | intArray | boolArray idArray | strArray;
+arrayLiteral: floatArray | intArray | boolArray | idArray | strArray;
 floatArray: LBRACE floatNulist RBRACE;
 intArray: LBRACE intNulist RBRACE;
 boolArray: LBRACE boolNulist RBRACE;
@@ -214,10 +214,6 @@ STATIC: 'static';
 TO: 'to';
 DOWNTO: 'downto';
 
-// IDENTIFIER
-/* rule which can be read as KEYWORDS must be at below KEYWORDS */
-ID: [a-zA-Z_][a-zA-Z0-9_]*;
-
 // OPERATOR
 // Arithmetic Operators
 PLUS: '+';
@@ -267,6 +263,10 @@ INTEGER_LITERAL: [0-9]+;
 FLOAT_LITERAL: [0-9]+ ('.' [0-9]*)? (('e'|'E') ('+'|'-')? [0-9]+)?;
 BOOLEAN_LITERAL: TRUE | FALSE;
 STRING_LITERAL: '"' ( '\\' [btnfr"'\\] | ~[\b\t\f\r\n\\"] )* '"' { self.text = self.text[1:-1] };
+
+// IDENTIFIER
+/* rule which can be read as KEYWORDS must be at below KEYWORDS */
+ID: [a-zA-Z_][a-zA-Z0-9_]*;
 
 // ERRORS
 ILLEGAL_ESCAPE: '"' ~[\n\r"]*? ('\\' ~[btnfr"'\\]) { self.text = self.text[1:] };
