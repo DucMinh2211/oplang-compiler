@@ -38,12 +38,10 @@ classDecl: CLASS ID classExtends LBRACE memberNulist RBRACE;
 
 classExtends: EXTENDS ID | ;
 memberNulist: member memberNulist | ;
-member: (isStatic (attributeDecl | methodDecl)) | constructor;
-isStatic: STATIC | ;
-/* === === === */
+member: attributeDecl | methodDecl | constructor;
 
 /* === ATTRIBUTE DECLARATION === */
-attributeDecl: isFinal typeRef attributeNameList SEMI;
+attributeDecl: (STATIC (FINAL)? | FINAL (STATIC)?)? typeRef attributeNameList SEMI;
 attributeNameList: attributeName COMMA attributeNameList | attributeName;
 
 isFinal: FINAL | ;
@@ -51,7 +49,7 @@ attributeName: ID ASSIGN expr0 | ID;
 /* === === === */
 
 /* === METHOD DECLARATION === */
-methodDecl: typeRef ID LPAREN paramNulist RPAREN blockStatement;
+methodDecl: (STATIC)? typeRef ID LPAREN paramNulist RPAREN blockStatement;
 
 paramNulist: paramPrime | ;
 paramPrime: param SEMI paramPrime | param;

@@ -226,7 +226,7 @@ def test_020():
             }
         }
     """
-    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([]), BlockStatement(stmts=[AssignmentStatement(PostfixLHS(PostfixExpression(ThisExpression(this).b.a)) := PostfixExpression(ThisExpression(this).a))]))])])"
+    expected = "Program([ClassDecl(T, [MethodDecl(PrimitiveType(void) do_this([]), BlockStatement(stmts=[AssignmentStatement(PostfixLHS(PostfixExpression(ThisExpression(this).a.b)) := PostfixExpression(ThisExpression(this).a))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
@@ -677,7 +677,7 @@ def test_067():
             obj.member.field := value;
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[AssignmentStatement(PostfixLHS(PostfixExpression(Identifier(obj).field.member)) := Identifier(value))]))])])"
+    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[AssignmentStatement(PostfixLHS(PostfixExpression(Identifier(obj).member.field)) := Identifier(value))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
@@ -815,7 +815,7 @@ def test_080():
     source = """class TestClass {
         final static int CONSTANT := 100;
     }"""
-    expected = "Program([ClassDecl(TestClass, [AttributeDecl(final static PrimitiveType(int), [Attribute(CONSTANT = IntLiteral(100))])])])"
+    expected = "Program([ClassDecl(TestClass, [AttributeDecl(static final PrimitiveType(int), [Attribute(CONSTANT = IntLiteral(100))])])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 

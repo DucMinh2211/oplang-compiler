@@ -40,23 +40,17 @@ class ASTGeneration(OPLangVisitor):
         return [self.visit(ctx.member())] + self.visit(ctx.memberNulist())
 
     def visitMember(self, ctx: OPLangParser.MemberContext) -> ConstructorDecl | AttributeDecl | MethodDecl:
-        if ctx.getChildCount() == 1:
+        if ctx.constructor():
             return self.visit(ctx.constructor())
-
-        is_static = True if self.visit(ctx.isStatic()) else False
-        if ctx.attributeDecl():
-            att_decl: AttributeDecl = self.visit(ctx.attributeDecl())
-            att_decl.is_static = is_static
-            return att_decl
-
-        method_decl: MethodDecl = self.visit(ctx.methodDecl())
-        method_decl.is_static = is_static
-        return method_decl
+        elif ctx.attributeDecl():
+            return self.visit(ctx.attributeDecl())
+        else:
+            return self.visit(ctx.methodDecl())
 
     def visitAttributeDecl(self, ctx: OPLangParser.AttributeDeclContext) -> AttributeDecl:
         return AttributeDecl(
-            is_static=False,
-            is_final=self.visit(ctx.isFinal()),
+            is_static=True if ctx.STATIC() else False,
+            is_final=True if ctx.FINAL() else False,
             attr_type=self.visit(ctx.typeRef()),
             attributes=self.visit(ctx.attributeNameList())
         )
@@ -76,7 +70,7 @@ class ASTGeneration(OPLangVisitor):
 
     def visitMethodDecl(self, ctx: OPLangParser.MethodDeclContext) -> MethodDecl:
         return MethodDecl(
-            is_static=False,
+            is_static=True if ctx.STATIC() else False,
             name=ctx.ID().getText(),
             return_type=self.visit(ctx.typeRef()),
             params=self.visit(ctx.paramNulist()),
@@ -99,8 +93,7 @@ class ASTGeneration(OPLangVisitor):
     def visitIsFinal(self, ctx: OPLangParser.IsFinalContext) -> bool:
         return ctx.FINAL()
 
-    def visitIsStatic(self, ctx: OPLangParser.IsStaticContext) -> bool:
-        return ctx.STATIC()
+
 
     def visitConstructor(self, ctx: OPLangParser.ConstructorContext) -> ConstructorDecl | DestructorDecl:
         if ctx.destructor():
@@ -366,7 +359,7 @@ class ASTGeneration(OPLangVisitor):
             op = MemberAccess(member_name=ctx.ID().getText())
 
         if isinstance(lhs, PostfixExpression):
-            lhs.postfix_ops.insert(0, op)
+            lhs.postfix_ops.append(op)
             return lhs
         
         return PostfixExpression(primary=lhs, postfix_ops=[op])

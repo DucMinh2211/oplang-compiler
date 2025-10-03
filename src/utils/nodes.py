@@ -652,7 +652,7 @@ class StaticMethodInvocation(MethodInvocation):
     """Static method invocation expression."""
 
     def __init__(self, class_name: str, method_name: str, args: List[Expr]):
-        super().__init__()
+        super().__init__(None)
         self.class_name = class_name
         self.method_name = method_name
         self.args = args
