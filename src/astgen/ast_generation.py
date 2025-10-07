@@ -181,12 +181,9 @@ class ASTGeneration(OPLangVisitor):
         return self.visit(ctx.assignStmt())
 
     def visitAssignStmt(self, ctx: OPLangParser.AssignStmtContext) -> AssignmentStatement:
-        rhs_node = None
-        if ctx.expr0():
-            rhs_node = self.visit(ctx.expr0())
         return AssignmentStatement(
             lhs=self.visit(ctx.lhs()),
-            rhs=rhs_node
+            rhs=self.visit(ctx.expr0()),
         )
 
     def visitLhs(self, ctx: OPLangParser.LhsContext) -> LHS:
@@ -226,10 +223,17 @@ class ASTGeneration(OPLangVisitor):
         return ReturnStatement(value=self.visit(ctx.expr0()))
 
     def visitMethodInvoStmt(self, ctx: OPLangParser.MethodInvoStmtContext) -> MethodInvocationStatement:
+        lhs = self.visit(ctx.arrayAccessExpr())
+        op = self.visit(ctx.methodInvocation())
+        if isinstance(lhs, PostfixExpression):
+            lhs.postfix_ops.append(op)
+            return MethodInvocationStatement(
+                method_call=lhs
+            )
         return MethodInvocationStatement(
             method_call=PostfixExpression(
-                primary=self.visit(ctx.arrayAccessExpr()),
-                postfix_ops=[self.visit(ctx.methodInvocation())]
+                primary=lhs,
+                postfix_ops=[op]
             )
         )
 
@@ -327,7 +331,7 @@ class ASTGeneration(OPLangVisitor):
         op = ArrayAccess(index=self.visit(ctx.arrayAccess()))
 
         if isinstance(lhs, PostfixExpression):
-            lhs.postfix_ops.insert(0, op)
+            lhs.postfix_ops.append(op)
             return lhs
         
         return PostfixExpression(primary=lhs, postfix_ops=[op])

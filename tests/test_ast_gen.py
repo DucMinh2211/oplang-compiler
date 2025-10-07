@@ -771,7 +771,7 @@ def test_076():
             obj.getChild().getValue();
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(PostfixExpression(PostfixExpression(Identifier(obj).getChild()).getValue()))]))])])"
+    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(PostfixExpression(Identifier(obj).getChild().getValue()))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
@@ -793,7 +793,7 @@ def test_078():
             int x := matrix[i][j];
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(vars=[VariableDecl(PrimitiveType(int), [Variable(x = PostfixExpression(Identifier(matrix)[Identifier(j)][Identifier(i)]))])], stmts=[]))])])"
+    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(vars=[VariableDecl(PrimitiveType(int), [Variable(x = PostfixExpression(Identifier(matrix)[Identifier(i)][Identifier(j)]))])], stmts=[]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
@@ -991,7 +991,7 @@ def test_097():
             builder.append("Hello").append(" ").append("World");
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(PostfixExpression(PostfixExpression(Identifier(builder).append(StringLiteral('Hello')).append(StringLiteral(' '))).append(StringLiteral('World'))))]))])])"
+    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(PostfixExpression(Identifier(builder).append(StringLiteral('Hello')).append(StringLiteral(' ')).append(StringLiteral('World'))))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
