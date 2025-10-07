@@ -181,9 +181,12 @@ class ASTGeneration(OPLangVisitor):
         return self.visit(ctx.assignStmt())
 
     def visitAssignStmt(self, ctx: OPLangParser.AssignStmtContext) -> AssignmentStatement:
+        rhs_node = None
+        if ctx.expr0():
+            rhs_node = self.visit(ctx.expr0())
         return AssignmentStatement(
             lhs=self.visit(ctx.lhs()),
-            rhs=self.visit(ctx.expr0())
+            rhs=rhs_node
         )
 
     def visitLhs(self, ctx: OPLangParser.LhsContext) -> LHS:
@@ -223,30 +226,12 @@ class ASTGeneration(OPLangVisitor):
         return ReturnStatement(value=self.visit(ctx.expr0()))
 
     def visitMethodInvoStmt(self, ctx: OPLangParser.MethodInvoStmtContext) -> MethodInvocationStatement:
-        method_call = self.visit(ctx.methodInvocation()) # This is a MethodCall node
-
-        if ctx.ID(): # e.g., ID.methodInvocation()
-            lhs_name = ctx.ID().getText()
-            if lhs_name == "io" or lhs_name in self._classes: # All io methods are static
-                return MethodInvocationStatement(
-                    method_invocation=StaticMethodInvocation(
-                        class_name=lhs_name,
-                        method_name=method_call.method_name,
-                        args=method_call.args
-                    )
-                )
-            else: # General case for ID.methodInvocation() (instance method call)
-                lhs = Identifier(lhs_name)
-                expr = PostfixExpression(primary=lhs, postfix_ops=[method_call])
-                return MethodInvocationStatement(method_invocation=MethodInvocation(postfix_expr=expr))
-        elif ctx.THIS(): # e.g., this.methodInvocation()
-            lhs = ThisExpression()
-            expr = PostfixExpression(primary=lhs, postfix_ops=[method_call])
-            return MethodInvocationStatement(method_invocation=MethodInvocation(postfix_expr=expr))
-        else: # e.g., methodInvocation() (direct method call)
-            implicit_this = ThisExpression()
-            expr = PostfixExpression(primary=implicit_this, postfix_ops=[method_call])
-            return MethodInvocationStatement(method_invocation=MethodInvocation(postfix_expr=expr))
+        return MethodInvocationStatement(
+            method_call=PostfixExpression(
+                primary=self.visit(ctx.arrayAccessExpr()),
+                postfix_ops=[self.visit(ctx.methodInvocation())]
+            )
+        )
 
     def visitMethodInvocation(self, ctx: OPLangParser.MethodInvocationContext) -> MethodCall:
         return MethodCall(

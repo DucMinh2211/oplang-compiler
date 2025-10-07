@@ -440,7 +440,7 @@ def test_042():
             obj.getValue();
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(MethodInvocation(PostfixExpression(Identifier(obj).getValue())))]))])])"
+    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(PostfixExpression(Identifier(obj).getValue()))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
@@ -451,7 +451,7 @@ def test_043():
             obj.setValue(10, "test");
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(MethodInvocation(PostfixExpression(Identifier(obj).setValue(IntLiteral(10), StringLiteral('test')))))]))])])"
+    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(PostfixExpression(Identifier(obj).setValue(IntLiteral(10), StringLiteral('test'))))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
@@ -464,7 +464,7 @@ def test_044():
             Math.abs(-5);
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(StaticMethodInvocation(Math.abs(UnaryOp(-, IntLiteral(5)))))]))])])"
+    expected = "Program([ClassDecl(Math, []), ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(PostfixExpression(Identifier(Math).abs(UnaryOp(-, IntLiteral(5)))))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
@@ -771,7 +771,7 @@ def test_076():
             obj.getChild().getValue();
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(MethodInvocation(PostfixExpression(Identifier(obj).getValue().getChild())))]))])])"
+    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(PostfixExpression(PostfixExpression(Identifier(obj).getChild()).getValue()))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
@@ -873,10 +873,10 @@ def test_086():
     """Test complex assignment with member access"""
     source = """class TestClass {
         void method() {
-            this.obj.field := other.getValue();
+            this.obj.field := another.getValue();
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[AssignmentStatement(PostfixLHS(PostfixExpression(ThisExpression(this).obj.field)) := PostfixExpression(Identifier(other).getValue()))]))])])"
+    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[AssignmentStatement(PostfixLHS(PostfixExpression(ThisExpression(this).obj.field)) := PostfixExpression(Identifier(another).getValue()))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 
@@ -991,7 +991,7 @@ def test_097():
             builder.append("Hello").append(" ").append("World");
         }
     }"""
-    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(MethodInvocation(PostfixExpression(Identifier(builder).append(StringLiteral('World')).append(StringLiteral(' ')).append(StringLiteral('Hello')))))]))])])"
+    expected = "Program([ClassDecl(TestClass, [MethodDecl(PrimitiveType(void) method([]), BlockStatement(stmts=[MethodInvocationStatement(PostfixExpression(PostfixExpression(Identifier(builder).append(StringLiteral('Hello')).append(StringLiteral(' '))).append(StringLiteral('World'))))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 

@@ -148,7 +148,7 @@ forStmt: FOR ID /*(scalar var)*/ ASSIGN expr0 (TO | DOWNTO) expr0 DO stmt;
 breakStmt: BREAK SEMI;
 continueStmt: CONTINUE SEMI;
 returnStmt: RETURN expr0 SEMI;
-methodInvoStmt: ((ID | THIS) DOT | ) methodInvocation SEMI;
+methodInvoStmt: arrayAccessExpr DOT methodInvocation SEMI;
 /* === === === */
 
 type: (INT | FLOAT | BOOLEAN | STRING | ID) arrayDecl | VOID;
