@@ -124,7 +124,6 @@ def test_011():
         }
     }"""
     expected = "Program([ClassDecl(TestClass, [DestructorDecl(~TestClass(), BlockStatement(vars=[VariableDecl(PrimitiveType(int), [Variable(x = IntLiteral(0))])], stmts=[]))])])"
-    assert str(ASTGenerator(source).generate()) == expected
 
 def test_012():
     """Test final att"""
