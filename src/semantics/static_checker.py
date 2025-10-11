@@ -50,4 +50,24 @@ class StaticChecker(ASTVisitor):
 
     Also checks for valid entry point: static void main() with no parameters.
     """
-    pass
+
+    CLASS_TXT = "Class"
+
+    def visit_program(self, node: "Program", o: Any = None):
+        reduce(lambda class_names, class_decl: self.visit(class_decl, class_names), node.class_decls, [{}])
+
+    def visit_class_decl(self, node: "ClassDecl", o: list[dict] = [{}]) -> list[dict] | None:
+        for scope in o:
+            if node.name in scope.keys():
+                raise Redeclared(self.CLASS_TXT, node.name)
+        o[0].update({ node.name : self.CLASS_TXT })
+        return reduce(lambda names, member: self.visit(member, names), node.members, o)
+
+    def visit_attribute_decl(self, node: "AttributeDecl", o: list[dict] = [{}]) -> list[dict] | None:
+        return reduce(lambda names, att: self.visit(att, names), node.attributes, o)
+
+    def visit_attribute(self, node: "Attribute", o: list[dict] = [{}]) -> list[dict] | None:
+        for scope in o:
+            if node.name in scope.keys():
+                raise Redeclared("", node.name)
+
