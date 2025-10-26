@@ -38,10 +38,16 @@ class Scope:
     BLOCK = 3
 
 class VariableInfo:
-    def __init__(self, is_final: bool, var_type: Any, var: Variable) -> None:
+    def __init__(self, is_final: bool, _type: Any, var: Variable) -> None:
         self.is_final: bool = is_final
-        self.var_type: Any = var_type
+        self._type: Any = _type
         self.var: Variable = var
+
+class AttributeInfo:
+    def __init__(self, is_final: bool, _type: Any, att: Attribute) -> None:
+        self.is_final: bool = is_final
+        self._type: Any = _type
+        self.att: Attribute = att
 
 
 class StaticChecker(ASTVisitor):
@@ -69,7 +75,21 @@ class StaticChecker(ASTVisitor):
     PARAM_TXT = "Parameter"
     CONST_TXT = "Constant"
     VAR_TXT = "Variable"
+    ID_TXT = "Identifier"
 
+    def undeclared_check(self, o: list[dict], name: str, kind: str):
+        for scope in o:
+            if name in scope.keys():
+                return
+        match kind:
+            case self.CLASS_TXT:
+                raise UndeclaredClass(name)
+            case self.ATT_TXT:
+                raise UndeclaredAttribute(name)
+            case self.METHOD_TXT:
+                raise UndeclaredMethod(name)
+            case self.ID_TXT:
+                raise UndeclaredIdentifier(name)
 
     def redeclared_check(self, o: list[dict], name: str, kind: str):
         for scope in o:
@@ -92,7 +112,7 @@ class StaticChecker(ASTVisitor):
         return o
 
     def visit_attribute_decl(self, node: "AttributeDecl", o: list[dict] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
-        reduce(lambda names, att: self.visit(att, names), node.attributes, o)
+        reduce(lambda acc, att: self.visit(att, acc), node.attributes, o)
 
     def visit_attribute(self, node: "Attribute", o: list[dict] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
         # Redeclared Check
@@ -108,9 +128,13 @@ class StaticChecker(ASTVisitor):
         self.redeclared_check(o, node.name, self.METHOD_TXT)
 
         # visit children
-        o_params = reduce(lambda params, param: self.visit(param, params), node.params, o)
-        o_vars_params = reduce(lambda var_decls, var_decl: self.visit(var_decl, var_decls), node.body.var_decls, o_params)
-        # TODO: finish
+        o_params = reduce(lambda acc, param: self.visit(param, acc), node.params, o)
+        o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_params)
+        for stmt in node.body.statements:
+            self.visit(stmt)
+
+        o[1][node.name] = node
+        return o
 
     def visit_parameter(self, node: "Parameter", o: Any = None):
         self.redeclared_check(o, node.name, self.PARAM_TXT)
@@ -128,3 +152,42 @@ class StaticChecker(ASTVisitor):
 
         o[2][node.name] = VariableInfo(var_decl.is_final, var_decl.var_type, node)
         return o
+
+    def visit_assignment_statement(self, node: "AssignmentStatement", o: Any = None):
+        lhs = self.visit(node.lhs, o)
+        rhs = self.visit(node.rhs, o)
+
+        if isinstance(lhs, (AttributeInfo, VariableInfo)):
+            if lhs.is_final: raise CannotAssignToConstant(node)
+
+    def visit_id_lhs(self, node: "IdLHS", o: Any = None):
+        self.undeclared_check(o=o, name=node.name, kind=self.ID_TXT)
+        return next(filter(lambda scope: scope.get(node.name, None), o))
+
+    def visit_postfix_lhs(self, node: "PostfixLHS", o: Any = None):
+        self.visit(node.postfix_expr)
+
+    def visit_postfix_expression(self, node: "PostfixExpression", o: Any = None):
+        self.visit(node.primary, o)
+        reduce(lambda acc, op: self.visit(op, acc), node.postfix_ops, o)
+
+    def visit_member_access(self, node: "MemberAccess", o: Any = None):
+        self.undeclared_check(o=o, name=node.member_name, kind=self.ID_TXT)
+
+    def visit_array_access(self, node: "ArrayAccess", o: Any = None):
+        # TODO: later
+        pass
+
+    def visit_method_call(self, node: "MethodCall", o: Any = None):
+        # TODO: later
+        pass
+
+    def visit_binary_op(self, node: "BinaryOp", o: Any = None):
+        o_left = self.visit(node.left, o)
+        o_right = self.visit(node.right)
+
+    def visit_unary_op(self, node: "UnaryOp", o: Any = None):
+        operand = self.visit(node.operand, o)
+
+    def visit_object_creation(self, node: "ObjectCreation", o: Any = None):
+        self.undeclared_check(o, node.class_name, self.CLASS_TXT)
