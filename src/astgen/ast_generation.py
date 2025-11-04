@@ -376,7 +376,7 @@ class ASTGeneration(OPLangVisitor):
             args=self.visit(ctx.exprNulist())
         )
 
-    def visitLiterals(self, ctx:OPLangParser.LiteralsContext):
+    def visitLiteralsWoArr(self, ctx:OPLangParser.LiteralsWoArrContext):
         if ctx.INTEGER_LITERAL():
             return IntLiteral(value=int(ctx.INTEGER_LITERAL().getText()))
         elif ctx.FLOAT_LITERAL():
@@ -385,93 +385,23 @@ class ASTGeneration(OPLangVisitor):
             return BoolLiteral(value=True if ctx.BOOLEAN_LITERAL().getText() == "true" else False)
         elif ctx.STRING_LITERAL():
             return StringLiteral(value=ctx.STRING_LITERAL().getText())
+
+    def visitLiterals(self, ctx: OPLangParser.LiteralsContext):
+        if ctx.literalsWoArr():
+            return self.visit(ctx.literalsWoArr())
         else:
             return self.visit(ctx.arrayLiteral())
 
     def visitArrayLiteral(self, ctx: OPLangParser.ArrayLiteralContext) -> ArrayLiteral:
-        if ctx.floatArray():
-            return self.visit(ctx.floatArray())
-        elif ctx.intArray():
-            return self.visit(ctx.intArray())
-        elif ctx.boolArray():
-            return self.visit(ctx.boolArray())
-        elif ctx.strArray():
-            return self.visit(ctx.strArray())
-        elif ctx.idArray():
-            return self.visit(ctx.idArray())
+        if len(ctx.literalsWoArr()) == 1:
+            elements = [self.visit(ctx.literalsWoArr()[0])]
+            return ArrayLiteral(elements=elements)
+        elif len(ctx.literalsWoArr()) > 1:
+            elements = reduce(lambda elems, ele: elems + [self.visit(ele)], ctx.literalsWoArr(), [])
+            return ArrayLiteral(elements=elements)
         else:
             # Empty array literal
             return ArrayLiteral([])
-
-    def visitFloatArray(self, ctx: OPLangParser.FloatArrayContext) -> ArrayLiteral:
-        elements = self.visit(ctx.floatNulist()) if ctx.floatNulist() else []
-        return ArrayLiteral(elements)
-
-    def visitIntArray(self, ctx: OPLangParser.IntArrayContext) -> ArrayLiteral:
-        elements = self.visit(ctx.intNulist()) if ctx.intNulist() else []
-        return ArrayLiteral(elements)
-
-    def visitBoolArray(self, ctx: OPLangParser.BoolArrayContext) -> ArrayLiteral:
-        elements = self.visit(ctx.boolNulist()) if ctx.boolNulist() else []
-        return ArrayLiteral(elements)
-
-    def visitStrArray(self, ctx: OPLangParser.StrArrayContext) -> ArrayLiteral:
-        elements = self.visit(ctx.strNulist()) if ctx.strNulist() else []
-        return ArrayLiteral(elements)
-
-    def visitIdArray(self, ctx: OPLangParser.IdArrayContext) -> ArrayLiteral:
-        elements = self.visit(ctx.idNulist()) if ctx.idNulist() else []
-        return ArrayLiteral(elements)
-
-    def visitFloatNulist(self, ctx: OPLangParser.FloatNulistContext) -> List[FloatLiteral]:
-        if ctx.floatPrime():
-            return self.visit(ctx.floatPrime())
-        return []
-
-    def visitIntNulist(self, ctx: OPLangParser.IntNulistContext) -> List[IntLiteral]:
-        if ctx.intPrime():
-            return self.visit(ctx.intPrime())
-        return []
-
-    def visitBoolNulist(self, ctx: OPLangParser.BoolNulistContext) -> List[BoolLiteral]:
-        if ctx.boolPrime():
-            return self.visit(ctx.boolPrime())
-        return []
-
-    def visitStrNulist(self, ctx: OPLangParser.StrNulistContext) -> List[StringLiteral]:
-        if ctx.strPrime():
-            return self.visit(ctx.strPrime())
-        return []
-
-    def visitIdNulist(self, ctx: OPLangParser.IdNulistContext) -> List[Identifier]:
-        if ctx.idPrime():
-            return self.visit(ctx.idPrime())
-        return []
-
-    def visitFloatPrime(self, ctx: OPLangParser.FloatPrimeContext) -> List[FloatLiteral]:
-        if ctx.floatPrime():
-            return [FloatLiteral(float(ctx.FLOAT_LITERAL().getText()))] + self.visit(ctx.floatPrime())
-        return [FloatLiteral(float(ctx.FLOAT_LITERAL().getText()))]
-
-    def visitIntPrime(self, ctx: OPLangParser.IntPrimeContext) -> List[IntLiteral]:
-        if ctx.intPrime():
-            return [IntLiteral(int(ctx.INTEGER_LITERAL().getText()))] + self.visit(ctx.intPrime())
-        return [IntLiteral(int(ctx.INTEGER_LITERAL().getText()))]
-
-    def visitBoolPrime(self, ctx: OPLangParser.BoolPrimeContext) -> List[BoolLiteral]:
-        if ctx.boolPrime():
-            return [BoolLiteral(ctx.BOOLEAN_LITERAL().getText() == "true")] + self.visit(ctx.boolPrime())
-        return [BoolLiteral(ctx.BOOLEAN_LITERAL().getText() == "true")]
-
-    def visitStrPrime(self, ctx: OPLangParser.StrPrimeContext) -> List[StringLiteral]:
-        if ctx.strPrime():
-            return [StringLiteral(ctx.STRING_LITERAL().getText())] + self.visit(ctx.strPrime())
-        return [StringLiteral(ctx.STRING_LITERAL().getText())]
-
-    def visitIdPrime(self, ctx: OPLangParser.IdPrimeContext) -> List[Identifier]:
-        if ctx.idPrime():
-            return [Identifier(ctx.ID().getText())] + self.visit(ctx.idPrime())
-        return [Identifier(ctx.ID().getText())]
 
     def visitArrayAccess(self, ctx: OPLangParser.ArrayAccessContext) -> Expr:
         return self.visit(ctx.expr0())

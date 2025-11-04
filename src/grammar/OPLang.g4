@@ -154,9 +154,10 @@ methodInvoStmt: arrayAccessExpr DOT methodInvocation SEMI;
 type: (INT | FLOAT | BOOLEAN | STRING | ID) arrayDecl | VOID;
 arrayDecl: LBRACKET INTEGER_LITERAL RBRACKET | ;
 
-literals: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL | arrayLiteral;
+literals: literalsWoArr | arrayLiteral;
+literalsWoArr: INTEGER_LITERAL | FLOAT_LITERAL | BOOLEAN_LITERAL | STRING_LITERAL;
 
-arrayLiteral: floatArray | intArray | boolArray | idArray | strArray;
+arrayLiteral: LBRACE (literalsWoArr (COMMA literalsWoArr)*)? RBRACE;
 floatArray: LBRACE floatNulist RBRACE;
 intArray: LBRACE intNulist RBRACE;
 boolArray: LBRACE boolNulist RBRACE;

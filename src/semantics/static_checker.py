@@ -8,8 +8,8 @@ specified in the OPLang language specification.
 """
 
 from functools import reduce
+from re import error
 from typing import Dict, List, Set, Optional, Any, Tuple, Union, NamedTuple, overload
-from typing_extensions import override
 from ..utils.visitor import ASTVisitor
 from ..utils.nodes import (
     ASTNode, Program, ClassDecl, AttributeDecl, Attribute, MethodDecl,
@@ -77,6 +77,12 @@ class StaticChecker(ASTVisitor):
     VAR_TXT = "Variable"
     ID_TXT = "Identifier"
 
+    def must_in_loop_check(self, o: list[dict], node: Union[BreakStatement, ContinueStatement]):
+        for scope in o:
+            if "for stmt" in scope:
+                return
+        raise MustInLoop(node)
+
     def undeclared_check(self, o: list[dict], name: str, kind: str):
         for scope in o:
             if name in scope.keys():
@@ -96,6 +102,9 @@ class StaticChecker(ASTVisitor):
             if name in scope.keys():
                 raise Redeclared(kind, name)
 
+    def check_program(self, node):
+        self.visit(node)
+
     def visit_program(self, node: "Program", o: Any = None):
         reduce(lambda class_names, class_decl: self.visit(class_decl, class_names), node.class_decls, [{}])
 
@@ -105,33 +114,47 @@ class StaticChecker(ASTVisitor):
             if node.name in scope.keys():
                 raise Redeclared(self.CLASS_TXT, node.name)
 
-        # visit children
+        # visit children - add class scope
         o[0][node.name] = None
-        reduce(lambda names, member: self.visit(member, names), node.members, o)
+        o_with_class = o + [{}]  # Add CLASS scope
+        reduce(lambda names, member: self.visit(member, names), node.members, o_with_class)
         o[0][node.name] = node
         return o
 
     def visit_attribute_decl(self, node: "AttributeDecl", o: list[dict] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
-        reduce(lambda acc, att: self.visit(att, acc), node.attributes, o)
+        reduce(lambda acc, att: self.visit(att, (acc, node)), node.attributes, o)
 
-    def visit_attribute(self, node: "Attribute", o: list[dict] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
+    def visit_attribute(self, node: "Attribute", o: Tuple[list[dict], Any] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
+        obj = o[0]
+        att_decl: AttributeDecl = o[1]
+
         # Redeclared Check
-        for scope in o:
+        for scope in obj:
             if node.name in scope.keys():
                 raise Redeclared(self.ATT_TXT, node.name)
 
-        o[1][node.name] = node
-        return o
+        if node.init_value:
+            init_val = self.visit(node.init_value, obj)
+            if isinstance(att_decl.attr_type, PrimitiveType):
+                if att_decl.attr_type.type_name != init_val:
+                    att_decl.attr_type = self.visit(att_decl.attr_type)
+                    if not att_decl.is_final: raise TypeMismatchInStatement(att_decl)
+                    else: raise TypeMismatchInConstant(att_decl)
+
+        obj[1][node.name] = node
+        return obj
 
     def visit_method_decl(self, node: "MethodDecl", o: Any = None):
         # Redeclared Check
         self.redeclared_check(o, node.name, self.METHOD_TXT)
 
-        # visit children
-        o_params = reduce(lambda acc, param: self.visit(param, acc), node.params, o)
-        o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_params)
+        # visit children - add method and block scopes
+        o_method = o + [{}]  # Add METHOD scope for parameters
+        o_params: list = reduce(lambda acc, param: self.visit(param, acc), node.params, o_method)
+        o_block = o_params + [{}]  # Add BLOCK scope for variables
+        o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_block)
         for stmt in node.body.statements:
-            self.visit(stmt)
+            self.visit(stmt, o_vars_params)
 
         o[1][node.name] = node
         return o
@@ -139,7 +162,7 @@ class StaticChecker(ASTVisitor):
     def visit_parameter(self, node: "Parameter", o: Any = None):
         self.redeclared_check(o, node.name, self.PARAM_TXT)
 
-        o[2][node.name] = node
+        o[-1][node.name] = node  # Add to current (METHOD) scope
         return o
 
     def visit_variable_decl(self, node: "VariableDecl", o: Any = None):
@@ -150,8 +173,16 @@ class StaticChecker(ASTVisitor):
         var_decl: VariableDecl = o[1]
         self.redeclared_check(obj, node.name, self.VAR_TXT)
 
-        o[2][node.name] = VariableInfo(var_decl.is_final, var_decl.var_type, node)
-        return o
+        if node.init_value:
+            init_val = self.visit(node.init_value, (obj, var_decl.var_type))
+            if isinstance(var_decl.var_type, PrimitiveType):
+                if self.visit(var_decl.var_type) != init_val:
+                    var_decl.var_type = self.visit(var_decl.var_type)
+                    if var_decl.is_final: raise TypeMismatchInConstant(var_decl)
+                    else: raise TypeMismatchInStatement(var_decl)
+
+        obj[-1][node.name] = VariableInfo(var_decl.is_final, var_decl.var_type, node)
+        return obj
 
     def visit_assignment_statement(self, node: "AssignmentStatement", o: Any = None):
         lhs = self.visit(node.lhs, o)
@@ -160,9 +191,13 @@ class StaticChecker(ASTVisitor):
         if isinstance(lhs, (AttributeInfo, VariableInfo)):
             if lhs.is_final: raise CannotAssignToConstant(node)
 
+        if type(lhs) != type(rhs):
+            raise TypeMismatchInStatement(node)
+
     def visit_id_lhs(self, node: "IdLHS", o: Any = None):
         self.undeclared_check(o=o, name=node.name, kind=self.ID_TXT)
-        return next(filter(lambda scope: scope.get(node.name, None), o))
+        result = next(filter(lambda value: value is not None, (scope.get(node.name, None) for scope in reversed(o))))
+        return result
 
     def visit_postfix_lhs(self, node: "PostfixLHS", o: Any = None):
         self.visit(node.postfix_expr)
@@ -185,9 +220,136 @@ class StaticChecker(ASTVisitor):
     def visit_binary_op(self, node: "BinaryOp", o: Any = None):
         o_left = self.visit(node.left, o)
         o_right = self.visit(node.right)
+        if type(o_left) == VariableInfo:
+            o_left = self.visit(o_left._type)
+        if type(o_right) == VariableInfo:
+            o_right = self.visit(o_right._type)
+
+        if o_left == o_right:
+            return o_left
+        raise TypeError(f"{o_left} {o_right}")
 
     def visit_unary_op(self, node: "UnaryOp", o: Any = None):
         operand = self.visit(node.operand, o)
 
     def visit_object_creation(self, node: "ObjectCreation", o: Any = None):
         self.undeclared_check(o, node.class_name, self.CLASS_TXT)
+        list(map(lambda arg: self.visit(arg, o), node.args))
+
+    def visit_identifier(self, node: "Identifier", o: Any = None):
+        obj = o[0]
+        self.undeclared_check(obj, node.name, self.ID_TXT)
+        result = next(filter(lambda value: value is not None, (scope.get(node.name, None) for scope in reversed(obj))))
+        return result
+
+    def visit_this_expression(self, node: "ThisExpression", o: Any = None):
+        pass
+
+    def visit_parenthesized_expression(self, node: "ParenthesizedExpression", o: Any = None):
+        self.visit(node.expr, o)
+
+    def visit_int_literal(self, node: "IntLiteral", o: Any = None):
+        return self.visit(PrimitiveType("int"), o)
+
+    def visit_float_literal(self, node: "FloatLiteral", o: Any = None):
+        return self.visit(PrimitiveType("float"))
+
+    def visit_bool_literal(self, node: "BoolLiteral", o: Any = None):
+        return self.visit(PrimitiveType("boolean"))
+
+    def visit_string_literal(self, node: "StringLiteral", o: Any = None):
+        return self.visit(PrimitiveType("string"))
+
+    def visit_array_literal(self, node: "ArrayLiteral", o: Any = None):
+        obj = o[0]
+        typ: PrimitiveType = o[1]
+        elems: list = list(map(lambda elem: self.visit(elem, o), node.value))
+        
+        # Check for IllegalArrayLiteral
+        for ele in elems:
+            if ele != self.visit(typ):
+                raise IllegalArrayLiteral(node)
+
+    def visit_nil_literal(self, node: "NilLiteral", o: Any = None):
+        return self.visit(PrimitiveType("void"))
+
+    def visit_constructor_decl(self, node: "ConstructorDecl", o: Any = None):
+        self.redeclared_check(o, node.name, self.METHOD_TXT)
+
+        o_method = o + [{}]  # Add METHOD scope for parameters
+        o_params: list = reduce(lambda acc, param: self.visit(param, acc), node.params, o_method)
+        o_block = o_params + [{}]  # Add BLOCK scope for variables
+        o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_block)
+        list(map(lambda stmt: self.visit(stmt, o_vars_params), node.body.statements))
+
+        o[1][node.name] = node
+        return o
+
+    def visit_destructor_decl(self, node: "DestructorDecl", o: Any = None):
+        self.redeclared_check(o, node.name, self.METHOD_TXT)
+
+        o_block = o + [{}]  # Add BLOCK scope for variables
+        o_vars = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_block)
+        list(map(lambda stmt: self.visit(stmt, o_vars), node.body.statements))
+
+        o[1][node.name] = node
+        return o
+
+    def visit_if_statement(self, node: "IfStatement", o: Any = None):
+        self.visit(node.condition, o)
+        self.visit(node.then_stmt, o)
+        if node.else_stmt:
+            self.visit(node.else_stmt, o)
+
+    def visit_for_statement(self, node: "ForStatement", o: Any = None):
+        start_expr = self.visit(node.start_expr, o)
+        end_expr = self.visit(node.end_expr, o)
+        var: VariableInfo = next(filter(lambda value: value is not None, (scope.get(node.variable, None) for scope in reversed(o))))
+
+        if var.is_final:
+            raise CannotAssignToConstant(node)
+        if type(var._type) is PrimitiveType and var._type.type_name != "int":
+            raise TypeMismatchInStatement(node)
+
+        # NOTE: symbol_dict's special key no.1 = "for stmt"
+        o[-1]["for stmt"] = node
+        self.visit(node.body, o)
+
+    def visit_break_statement(self, node: "BreakStatement", o: Any = None):
+        self.must_in_loop_check(o, node)
+
+    def visit_continue_statement(self, node: "ContinueStatement", o: Any = None):
+        self.must_in_loop_check(o, node)
+
+    def visit_return_statement(self, node: "ReturnStatement", o: Any = None):
+        if node.value:
+            self.visit(node.value, o)
+
+    def visit_method_invocation_statement(self, node: "MethodInvocationStatement", o: Any = None):
+        self.visit(node.method_call, o)
+
+    def visit_block_statement(self, node: "BlockStatement", o: Any = None):
+        o_block = o + [{}]  # Add new BLOCK scope
+        o_vars = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.var_decls, o_block)
+        list(map(lambda stmt: self.visit(stmt, o_vars), node.statements))
+
+    def visit_primitive_type(self, node: "PrimitiveType", o: Any = None): # type: ignore[reportIncompatibleMethodOverride]
+        return node.type_name
+
+    def visit_array_type(self, node: "ArrayType", o: Any = None):
+        self.visit(node.element_type, o)
+
+    def visit_class_type(self, node: "ClassType", o: Any = None):
+        self.undeclared_check(o, node.class_name, self.CLASS_TXT)
+
+    def visit_reference_type(self, node: "ReferenceType", o: Any = None):
+        self.visit(node.referenced_type, o)
+
+    def visit_static_method_invocation(self, node: "MethodCall", o: Any = None):
+        list(map(lambda arg: self.visit(arg, o), node.args))
+
+    def visit_static_member_access(self, node: "StaticMemberAccess", o: Any = None):
+        pass
+
+    def visit_method_invocation(self, node: "MethodInvocation", o: Any = None):
+        self.visit(node.postfix_expr, o)

@@ -88,3 +88,15 @@ class Test {
 """
     expected = "IllegalArrayLiteral(ArrayLiteral({BoolLiteral(true), IntLiteral(42)}))"
     assert Checker(source).check_from_source() == expected
+
+def test_010():
+    """Test TypeMismatchInConstant"""
+    source = """
+class Test {
+    final int a := "hi";
+    static void main() {
+    }
+}
+"""
+    expected = "TypeMismatchInConstant(AttributeDecl(final int, [Attribute(a = StringLiteral('hi'))]))"
+    assert Checker(source).check_from_source() == expected
