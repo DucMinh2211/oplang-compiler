@@ -76,6 +76,7 @@ class StaticChecker(ASTVisitor):
     CONST_TXT = "Constant"
     VAR_TXT = "Variable"
     ID_TXT = "Identifier"
+    CONSTRUC_TXT = "Constructor"
 
     def must_in_loop_check(self, o: list[dict], node: Union[BreakStatement, ContinueStatement]):
         for scope in o:
@@ -117,12 +118,13 @@ class StaticChecker(ASTVisitor):
         # visit children - add class scope
         o[0][node.name] = None
         o_with_class = o + [{}]  # Add CLASS scope
-        reduce(lambda names, member: self.visit(member, names), node.members, o_with_class)
+        o_with_class = reduce(lambda names, member: self.visit(member, names), node.members, o_with_class)
         o[0][node.name] = node
         return o
 
     def visit_attribute_decl(self, node: "AttributeDecl", o: list[dict] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
-        reduce(lambda acc, att: self.visit(att, (acc, node)), node.attributes, o)
+        obj = reduce(lambda acc, att: self.visit(att, (acc, node)), node.attributes, o)
+        return obj
 
     def visit_attribute(self, node: "Attribute", o: Tuple[list[dict], Any] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
         obj = o[0]
@@ -174,9 +176,9 @@ class StaticChecker(ASTVisitor):
         self.redeclared_check(obj, node.name, self.VAR_TXT)
 
         if node.init_value:
-            init_val = self.visit(node.init_value, (obj, var_decl.var_type))
+            init_val: str = self.visit(node.init_value, (obj, var_decl.var_type))
             if isinstance(var_decl.var_type, PrimitiveType):
-                if self.visit(var_decl.var_type) != init_val:
+                if not init_val in self.visit(var_decl.var_type):
                     var_decl.var_type = self.visit(var_decl.var_type)
                     if var_decl.is_final: raise TypeMismatchInConstant(var_decl)
                     else: raise TypeMismatchInStatement(var_decl)
@@ -184,12 +186,14 @@ class StaticChecker(ASTVisitor):
         obj[-1][node.name] = VariableInfo(var_decl.is_final, var_decl.var_type, node)
         return obj
 
-    def visit_assignment_statement(self, node: "AssignmentStatement", o: Any = None):
+    def visit_assignment_statement(self, node: "AssignmentStatement", o: list[dict] = [{}]):
         lhs = self.visit(node.lhs, o)
         rhs = self.visit(node.rhs, o)
 
         if isinstance(lhs, (AttributeInfo, VariableInfo)):
-            if lhs.is_final: raise CannotAssignToConstant(node)
+            for scope in o:
+                if lhs.is_final and not scope.get("can init final", None):
+                    raise CannotAssignToConstant(node)
 
         if type(lhs) != type(rhs):
             raise TypeMismatchInStatement(node)
@@ -227,7 +231,7 @@ class StaticChecker(ASTVisitor):
 
         if o_left == o_right:
             return o_left
-        raise TypeError(f"{o_left} {o_right}")
+        raise TypeMismatchInExpression(node)
 
     def visit_unary_op(self, node: "UnaryOp", o: Any = None):
         operand = self.visit(node.operand, o)
@@ -273,12 +277,12 @@ class StaticChecker(ASTVisitor):
     def visit_nil_literal(self, node: "NilLiteral", o: Any = None):
         return self.visit(PrimitiveType("void"))
 
-    def visit_constructor_decl(self, node: "ConstructorDecl", o: Any = None):
-        self.redeclared_check(o, node.name, self.METHOD_TXT)
+    def visit_constructor_decl(self, node: "ConstructorDecl", o: list[dict] = [{}]): # type: ignore[reportIncompatibleMethodOverride]
+        self.redeclared_check(o[1::], node.name, self.METHOD_TXT)
 
         o_method = o + [{}]  # Add METHOD scope for parameters
         o_params: list = reduce(lambda acc, param: self.visit(param, acc), node.params, o_method)
-        o_block = o_params + [{}]  # Add BLOCK scope for variables
+        o_block = o_params + [{"can init final": True}]  # Add BLOCK scope for variables
         o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_block)
         list(map(lambda stmt: self.visit(stmt, o_vars_params), node.body.statements))
 

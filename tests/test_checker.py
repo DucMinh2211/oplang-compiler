@@ -100,3 +100,19 @@ class Test {
 """
     expected = "TypeMismatchInConstant(AttributeDecl(final int, [Attribute(a = StringLiteral('hi'))]))"
     assert Checker(source).check_from_source() == expected
+
+def test_011():
+    """Test assign to final in constructor"""
+    source = """
+class Test {
+    final int a := 1;
+    Test() {
+        a := 2;
+    }
+    static void main() {
+    }
+}
+"""
+    expected = "TypeMismatchInConstant(AttributeDecl(final int, [Attribute(a = StringLiteral('hi'))]))"
+    assert Checker(source).check_from_source() == expected
+
