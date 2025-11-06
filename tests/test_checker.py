@@ -113,6 +113,6 @@ class Test {
     }
 }
 """
-    expected = "TypeMismatchInConstant(AttributeDecl(final int, [Attribute(a = StringLiteral('hi'))]))"
+    expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 

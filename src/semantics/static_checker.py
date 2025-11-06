@@ -195,8 +195,12 @@ class StaticChecker(ASTVisitor):
                 if lhs.is_final and not scope.get("can init final", None):
                     raise CannotAssignToConstant(node)
 
-        if type(lhs) != type(rhs):
-            raise TypeMismatchInStatement(node)
+        if isinstance(lhs, AttributeInfo) and type(rhs) == str:
+            if rhs not in self.visit(lhs.attr_type):
+                raise TypeMismatchInStatement(node)
+        elif isinstance(lhs, VariableInfo) and type(rhs) == str:
+            if rhs not in self.visit(lhs.var_type):
+                raise TypeMismatchInStatement(node)
 
     def visit_id_lhs(self, node: "IdLHS", o: Any = None):
         self.undeclared_check(o=o, name=node.name, kind=self.ID_TXT)
@@ -282,6 +286,7 @@ class StaticChecker(ASTVisitor):
 
         o_method = o + [{}]  # Add METHOD scope for parameters
         o_params: list = reduce(lambda acc, param: self.visit(param, acc), node.params, o_method)
+        # NOTE: symbol_dict's special key no.1 = "can init final"
         o_block = o_params + [{"can init final": True}]  # Add BLOCK scope for variables
         o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_block)
         list(map(lambda stmt: self.visit(stmt, o_vars_params), node.body.statements))
