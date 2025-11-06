@@ -37,18 +37,12 @@ class Scope:
     METHOD = 2
     BLOCK = 3
 
-class VariableInfo:
-    def __init__(self, is_final: bool, _type: Any, var: Variable) -> None:
+class VarAttInfo:
+    def __init__(self, is_final: bool, _type: Any, info: Variable|Attribute, is_static: bool = False) -> None:
         self.is_final: bool = is_final
+        self.is_static: bool = is_static
         self._type: Any = _type
-        self.var: Variable = var
-
-class AttributeInfo:
-    def __init__(self, is_final: bool, _type: Any, att: Attribute) -> None:
-        self.is_final: bool = is_final
-        self._type: Any = _type
-        self.att: Attribute = att
-
+        self.info: Variable|Attribute = info
 
 class StaticChecker(ASTVisitor):
     """
@@ -143,7 +137,7 @@ class StaticChecker(ASTVisitor):
                     if not att_decl.is_final: raise TypeMismatchInStatement(att_decl)
                     else: raise TypeMismatchInConstant(att_decl)
 
-        obj[1][node.name] = node
+        obj[1][node.name] = VarAttInfo(is_final=att_decl.is_final, _type=att_decl.attr_type, info=node, is_static=att_decl.is_static)
         return obj
 
     def visit_method_decl(self, node: "MethodDecl", o: Any = None):
@@ -178,28 +172,28 @@ class StaticChecker(ASTVisitor):
         if node.init_value:
             init_val: str = self.visit(node.init_value, (obj, var_decl.var_type))
             if isinstance(var_decl.var_type, PrimitiveType):
-                if not init_val in self.visit(var_decl.var_type):
+                if init_val != self.visit(var_decl.var_type):
                     var_decl.var_type = self.visit(var_decl.var_type)
                     if var_decl.is_final: raise TypeMismatchInConstant(var_decl)
                     else: raise TypeMismatchInStatement(var_decl)
 
-        obj[-1][node.name] = VariableInfo(var_decl.is_final, var_decl.var_type, node)
+        obj[-1][node.name] = VarAttInfo(var_decl.is_final, var_decl.var_type, node)
         return obj
 
     def visit_assignment_statement(self, node: "AssignmentStatement", o: list[dict] = [{}]):
         lhs = self.visit(node.lhs, o)
         rhs = self.visit(node.rhs, o)
 
-        if isinstance(lhs, (AttributeInfo, VariableInfo)):
-            for scope in o:
-                if lhs.is_final and not scope.get("can init final", None):
-                    raise CannotAssignToConstant(node)
+        can_init_final = False
 
-        if isinstance(lhs, AttributeInfo) and type(rhs) == str:
-            if rhs not in self.visit(lhs.attr_type):
-                raise TypeMismatchInStatement(node)
-        elif isinstance(lhs, VariableInfo) and type(rhs) == str:
-            if rhs not in self.visit(lhs.var_type):
+        if isinstance(lhs, VarAttInfo):
+            for scope in o:
+                if scope.get("can init final", None):
+                    can_init_final = True
+            if lhs.is_final and not can_init_final: raise CannotAssignToConstant(node)
+
+        if isinstance(lhs, VarAttInfo) and type(rhs) == str:
+            if rhs not in self.visit(lhs._type):
                 raise TypeMismatchInStatement(node)
 
     def visit_id_lhs(self, node: "IdLHS", o: Any = None):
@@ -228,9 +222,9 @@ class StaticChecker(ASTVisitor):
     def visit_binary_op(self, node: "BinaryOp", o: Any = None):
         o_left = self.visit(node.left, o)
         o_right = self.visit(node.right)
-        if type(o_left) == VariableInfo:
+        if type(o_left) == VarAttInfo:
             o_left = self.visit(o_left._type)
-        if type(o_right) == VariableInfo:
+        if type(o_right) == VarAttInfo:
             o_right = self.visit(o_right._type)
 
         if o_left == o_right:
@@ -305,15 +299,20 @@ class StaticChecker(ASTVisitor):
         return o
 
     def visit_if_statement(self, node: "IfStatement", o: Any = None):
-        self.visit(node.condition, o)
+        breakpoint()
+        cond = self.visit(node.condition, o)
         self.visit(node.then_stmt, o)
         if node.else_stmt:
             self.visit(node.else_stmt, o)
 
+        if isinstance(cond, PrimitiveType):
+            if cond.type_name != "boolean":
+                raise TypeMismatchInStatement(node)
+
     def visit_for_statement(self, node: "ForStatement", o: Any = None):
         start_expr = self.visit(node.start_expr, o)
         end_expr = self.visit(node.end_expr, o)
-        var: VariableInfo = next(filter(lambda value: value is not None, (scope.get(node.variable, None) for scope in reversed(o))))
+        var: VarAttInfo = next(filter(lambda value: value is not None, (scope.get(node.variable, None) for scope in reversed(o))))
 
         if var.is_final:
             raise CannotAssignToConstant(node)
