@@ -239,7 +239,7 @@ class StaticChecker(ASTVisitor):
         list(map(lambda arg: self.visit(arg, o), node.args))
 
     def visit_identifier(self, node: "Identifier", o: Any = None):
-        obj = o[0]
+        obj = o[0] if type(o) is tuple else o
         self.undeclared_check(obj, node.name, self.ID_TXT)
         result = next(filter(lambda value: value is not None, (scope.get(node.name, None) for scope in reversed(obj))))
         return result
@@ -299,15 +299,13 @@ class StaticChecker(ASTVisitor):
         return o
 
     def visit_if_statement(self, node: "IfStatement", o: Any = None):
-        breakpoint()
         cond = self.visit(node.condition, o)
+        if isinstance(cond, VarAttInfo):
+            if cond._type != "boolean":
+                raise TypeMismatchInStatement(node)
         self.visit(node.then_stmt, o)
         if node.else_stmt:
             self.visit(node.else_stmt, o)
-
-        if isinstance(cond, PrimitiveType):
-            if cond.type_name != "boolean":
-                raise TypeMismatchInStatement(node)
 
     def visit_for_statement(self, node: "ForStatement", o: Any = None):
         start_expr = self.visit(node.start_expr, o)

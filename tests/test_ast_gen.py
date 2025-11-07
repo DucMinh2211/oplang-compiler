@@ -2,9 +2,17 @@ from tests.utils import ASTGenerator
 
 def test_001():
     """Test basic class declaration AST generation"""
-    source = """class TestClass {
-        int x;
-    }"""
+    source = """
+class ConditionalError {
+    void check() {
+        int x := 5;
+        string message := "hello";
+        if x > 0 then {  // Error: TypeMismatchInStatement at if statement
+            x := 2;
+        }
+    }
+}
+"""
     expected = "Program([ClassDecl(TestClass, [AttributeDecl(PrimitiveType(int), [Attribute(x)])])])"
     # Just check that it doesn't return an error
     assert str(ASTGenerator(source).generate()) == expected
