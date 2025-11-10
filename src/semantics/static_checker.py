@@ -103,6 +103,29 @@ class StaticChecker(ASTVisitor):
             if name in scope.keys():
                 raise Redeclared(kind, name)
 
+    def comp_type(self, lhs: Union[PrimitiveType, ArrayType, ClassType, str], rhs: Union[str, ArrayLiteral]) -> bool:
+        lhs_type = None
+        rhs_type = None
+        if type(lhs) is PrimitiveType:
+            lhs_type = lhs.type_name
+        elif type(lhs) is ArrayType:
+            lhs_type = lhs.element_type
+
+        if type(rhs) is str:
+            rhs_type = rhs
+        elif type(rhs) is ArrayLiteral:
+            rhs_type = lhs_type
+
+        if type(lhs) is ArrayType and type(rhs) is ArrayLiteral:
+            if lhs.size != len(rhs.value): return False
+
+        assert lhs_type, "lhs_type is None"
+        assert rhs_type, "rhs_type is None"
+        if lhs_type == "float" and rhs == "int":
+            return True
+        elif lhs_type == rhs: return True
+        return False
+
     def check_program(self, node):
         self.visit(node)
 
@@ -126,7 +149,7 @@ class StaticChecker(ASTVisitor):
         obj = reduce(lambda acc, att: self.visit(att, (acc, node)), node.attributes, o)
         return obj
 
-    def visit_attribute(self, node: "Attribute", o: Tuple[list[dict], Any] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
+    def visit_attribute(self, node: "Attribute", o: Tuple[list[dict], AttributeDecl] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
         obj = o[0]
         att_decl: AttributeDecl = o[1]
 
@@ -137,11 +160,10 @@ class StaticChecker(ASTVisitor):
 
         if node.init_value:
             init_val = self.visit(node.init_value, obj)
-            if isinstance(att_decl.attr_type, PrimitiveType):
-                if att_decl.attr_type.type_name != init_val:
-                    att_decl.attr_type = self.visit(att_decl.attr_type)
-                    if not att_decl.is_final: raise TypeMismatchInStatement(att_decl)
-                    else: raise TypeMismatchInConstant(att_decl)
+            if isinstance(att_decl.attr_type, (PrimitiveType, ArrayType, ClassType)) and isinstance(init_val, (str, ArrayLiteral)):
+                if not self.comp_type(att_decl.attr_type, init_val):
+                    if att_decl.is_final: raise TypeMismatchInConstant(att_decl)
+                    else: raise TypeMismatchInStatement(att_decl)
 
         obj[1][node.name] = VarAttInfo(is_final=att_decl.is_final, _type=att_decl.attr_type, info=node, is_static=att_decl.is_static)
         return obj
@@ -176,10 +198,9 @@ class StaticChecker(ASTVisitor):
         self.redeclared_check(obj, node.name, self.VAR_TXT)
 
         if node.init_value:
-            init_val: str = self.visit(node.init_value, (obj, var_decl.var_type))
-            if isinstance(var_decl.var_type, PrimitiveType):
-                if init_val != self.visit(var_decl.var_type):
-                    var_decl.var_type = self.visit(var_decl.var_type)
+            init_val = self.visit(node.init_value, (obj, var_decl.var_type))
+            if isinstance(var_decl.var_type, (PrimitiveType, ArrayType)) and isinstance(init_val, (str, ArrayLiteral)):
+                if not self.comp_type(var_decl.var_type, init_val):
                     if var_decl.is_final: raise TypeMismatchInConstant(var_decl)
                     else: raise TypeMismatchInStatement(var_decl)
 
@@ -199,7 +220,7 @@ class StaticChecker(ASTVisitor):
             if lhs.is_final and not can_init_final: raise CannotAssignToConstant(node)
 
         if isinstance(lhs, VarAttInfo) and type(rhs) == str:
-            if rhs not in self.visit(lhs._type):
+            if not self.comp_type(lhs._type, rhs):
                 raise TypeMismatchInStatement(node)
 
     def visit_id_lhs(self, node: "IdLHS", o: Any = None):
@@ -268,15 +289,19 @@ class StaticChecker(ASTVisitor):
     def visit_string_literal(self, node: "StringLiteral", o: Any = None):
         return self.visit(PrimitiveType("string"))
 
-    def visit_array_literal(self, node: "ArrayLiteral", o: Any = None):
+    def visit_array_literal(self, node: "ArrayLiteral", o: Any = None): # type: ignore[reportIncompatibleMethodOverride]
         obj = o[0]
-        typ: PrimitiveType = o[1]
+        typ: ArrayType = o[1]
         elems: list = list(map(lambda elem: self.visit(elem, o), node.value))
         
-        # Check for IllegalArrayLiteral
-        for ele in elems:
-            if ele != self.visit(typ):
-                raise IllegalArrayLiteral(node)
+        # Check for IllegalArrayLiteral - all elements must have the same type
+        if elems:
+            first_elem_type = elems[0]
+            for ele_type in elems[1:]:
+                if ele_type != first_elem_type:
+                    raise IllegalArrayLiteral(node)
+
+        return node
 
     def visit_nil_literal(self, node: "NilLiteral", o: Any = None):
         return self.visit(PrimitiveType("void"))
@@ -285,7 +310,8 @@ class StaticChecker(ASTVisitor):
         self.redeclared_check(o[1::], node.name, self.METHOD_TXT)
 
         o_method = o + [{}]  # Add METHOD scope for parameters
-        o_params: list = reduce(lambda acc, param: self.visit(param, acc), node.params, o_method)
+        o_params = reduce(lambda acc, param: self.visit(param, acc), node.params, o_method)
+        assert type(o_params) is list, f"ConstructorDecl o_params is {type(o_params)} not list"
         # NOTE: symbol_dict's special key no.1 = "can init final"
         o_block = o_params + [{"can init final": True}]  # Add BLOCK scope for variables
         o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_block)
@@ -307,8 +333,10 @@ class StaticChecker(ASTVisitor):
     def visit_if_statement(self, node: "IfStatement", o: Any = None):
         cond = self.visit(node.condition, o)
         if isinstance(cond, VarAttInfo):
-            if cond._type != "boolean":
+            if isinstance(cond._type, PrimitiveType) and cond._type.type_name != "boolean":
                 raise TypeMismatchInStatement(node)
+        elif type(cond) is str and cond != "boolean":
+            raise TypeMismatchInStatement(node)
         self.visit(node.then_stmt, o)
         if node.else_stmt:
             self.visit(node.else_stmt, o)
@@ -352,8 +380,8 @@ class StaticChecker(ASTVisitor):
     def visit_primitive_type(self, node: "PrimitiveType", o: Any = None): # type: ignore[reportIncompatibleMethodOverride]
         return node.type_name
 
-    def visit_array_type(self, node: "ArrayType", o: Any = None):
-        self.visit(node.element_type, o)
+    def visit_array_type(self, node: "ArrayType", o: Any = None): # type: ignore[reportIncompatibleMethodOverride]
+        return node.element_type
 
     def visit_class_type(self, node: "ClassType", o: Any = None):
         self.undeclared_check(o, node.class_name, self.CLASS_TXT)

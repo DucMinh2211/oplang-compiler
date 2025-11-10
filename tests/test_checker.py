@@ -98,7 +98,7 @@ class Test {
     }
 }
 """
-    expected = "TypeMismatchInConstant(AttributeDecl(final int, [Attribute(a = StringLiteral('hi'))]))"
+    expected = "TypeMismatchInConstant(AttributeDecl(final PrimitiveType(int), [Attribute(a = StringLiteral('hi'))]))"
     assert Checker(source).check_from_source() == expected
 
 def test_011():
@@ -159,3 +159,41 @@ def test_14():
     """
     expected = "TypeMismatchInStatement(ForStatement(for x := IntLiteral(5) to IntLiteral(10) do BlockStatement(stmts=[])))"
     assert Checker(source).check_from_source() == expected
+
+def test_15():
+    """Test TypeMismatchInStatement assign int to float (passed)"""
+    source = """
+    class ValidCoercion {
+        void test() {
+            float x;
+            x := 5;
+        }
+    }
+    """
+    expected = "Static checking passed"
+    assert Checker(source).check_from_source() == expected
+
+def test_16():
+    """Test TypeMismatchInStatement assign int to float (passed)"""
+    source = """
+    class ValidCoercion {
+        void coerce() {
+            int x := 10;
+            float y := x;  # Valid: int to float coercion
+        }
+    }
+    """
+    expected = "Static checking passed"
+    assert Checker(source).check_from_source() == expected
+
+def test_17():
+   """Test TypeMismatchInStatement with array (wrong arr size)"""
+   source = """
+   class Test {
+        void test() {
+            int[5] arr := {1,2,3,4};
+        }
+   }
+   """
+   expected = "TypeMismatchInStatement(VariableDecl(ArrayType(PrimitiveType(int)[5]), [Variable(arr = ArrayLiteral({IntLiteral(1), IntLiteral(2), IntLiteral(3), IntLiteral(4)}))]))"
+   assert Checker(source).check_from_source() == expected
