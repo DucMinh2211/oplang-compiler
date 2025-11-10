@@ -8,8 +8,7 @@ specified in the OPLang language specification.
 """
 
 from functools import reduce
-from re import error
-from typing import Dict, List, Set, Optional, Any, Tuple, Union, NamedTuple, overload
+from typing import Dict, List, Set, Optional, Any, Tuple, Union, NamedTuple
 from ..utils.visitor import ASTVisitor
 from ..utils.nodes import (
     ASTNode, Program, ClassDecl, AttributeDecl, Attribute, MethodDecl,
@@ -43,6 +42,13 @@ class VarAttInfo:
         self.is_static: bool = is_static
         self._type: Any = _type
         self.info: Variable|Attribute = info
+    def __str__(self) -> str:
+        return f"""
+            is_final = {self.is_final}
+            is_static = {self.is_static}
+            type = {self._type}
+            info = {self.info.__str__()}
+        """
 
 class StaticChecker(ASTVisitor):
     """
@@ -145,7 +151,7 @@ class StaticChecker(ASTVisitor):
         self.redeclared_check(o, node.name, self.METHOD_TXT)
 
         # visit children - add method and block scopes
-        o_method = o + [{}]  # Add METHOD scope for parameters
+        o_method = o + [{node.name: node}]  # Add METHOD scope for parameters
         o_params: list = reduce(lambda acc, param: self.visit(param, acc), node.params, o_method)
         o_block = o_params + [{}]  # Add BLOCK scope for variables
         o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_block)
@@ -315,6 +321,10 @@ class StaticChecker(ASTVisitor):
         if var.is_final:
             raise CannotAssignToConstant(node)
         if type(var._type) is PrimitiveType and var._type.type_name != "int":
+            raise TypeMismatchInStatement(node)
+        if start_expr != "int":
+            raise TypeMismatchInStatement(node)
+        if end_expr != "int":
             raise TypeMismatchInStatement(node)
 
         # NOTE: symbol_dict's special key no.1 = "for stmt"

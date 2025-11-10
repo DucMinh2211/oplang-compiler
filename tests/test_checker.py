@@ -146,3 +146,16 @@ class ConditionalError {
 """
     expected = "TypeMismatchInStatement(IfStatement(if Identifier(x) then BlockStatement(stmts=[AssignmentStatement(IdLHS(x) := IntLiteral(1))])))"
     assert Checker(source).check_from_source() == expected
+
+def test_14():
+    """Test TypeMismatchInStatement for with bool"""
+    source = """
+        class ForCheck {
+            void check() {
+                boolean x;
+                for x := 5 to 10 do {}
+            }
+        }
+    """
+    expected = "TypeMismatchInStatement(ForStatement(for x := IntLiteral(5) to IntLiteral(10) do BlockStatement(stmts=[])))"
+    assert Checker(source).check_from_source() == expected
