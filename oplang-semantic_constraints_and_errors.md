@@ -295,7 +295,7 @@ class ValidConstants {
 - RHS must be same type as LHS or coercible to LHS type
 - Integer can coerce to float
 ###### - Subtype can coerce to supertype
-###### - Array assignments require same size and compatible element types
+- Array assignments require same size and compatible element types
 
 **Call Statements:**
 - Object must be class type

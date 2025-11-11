@@ -103,7 +103,7 @@ class StaticChecker(ASTVisitor):
             if name in scope.keys():
                 raise Redeclared(kind, name)
 
-    def comp_type(self, lhs: Union[PrimitiveType, ArrayType, ClassType, str], rhs: Union[str, ArrayLiteral]) -> bool:
+    def comp_type(self, lhs: Union[PrimitiveType, ArrayType, ClassType, str], rhs: Union[str, ArrayLiteral, ObjectCreation]) -> bool:
         lhs_type = None
         rhs_type = None
         if type(lhs) is PrimitiveType:
@@ -116,6 +116,9 @@ class StaticChecker(ASTVisitor):
         elif type(rhs) is ArrayLiteral:
             rhs_type = lhs_type
 
+        if type(lhs) is ClassType and type(rhs) is ObjectCreation:
+            return lhs.class_name == rhs.class_name
+
         if type(lhs) is ArrayType and type(rhs) is ArrayLiteral:
             if lhs.size != len(rhs.value): return False
 
@@ -123,8 +126,7 @@ class StaticChecker(ASTVisitor):
         assert rhs_type, "rhs_type is None"
         if lhs_type == "float" and rhs == "int":
             return True
-        elif lhs_type == rhs: return True
-        return False
+        return lhs_type == rhs
 
     def check_program(self, node):
         self.visit(node)
@@ -160,7 +162,7 @@ class StaticChecker(ASTVisitor):
 
         if node.init_value:
             init_val = self.visit(node.init_value, obj)
-            if isinstance(att_decl.attr_type, (PrimitiveType, ArrayType, ClassType)) and isinstance(init_val, (str, ArrayLiteral)):
+            if isinstance(att_decl.attr_type, (PrimitiveType, ArrayType, ClassType)) and isinstance(init_val, (str, ArrayLiteral, ObjectCreation)):
                 if not self.comp_type(att_decl.attr_type, init_val):
                     if att_decl.is_final: raise TypeMismatchInConstant(att_decl)
                     else: raise TypeMismatchInStatement(att_decl)
@@ -199,7 +201,7 @@ class StaticChecker(ASTVisitor):
 
         if node.init_value:
             init_val = self.visit(node.init_value, (obj, var_decl.var_type))
-            if isinstance(var_decl.var_type, (PrimitiveType, ArrayType)) and isinstance(init_val, (str, ArrayLiteral)):
+            if isinstance(var_decl.var_type, (PrimitiveType, ArrayType, ClassType)) and isinstance(init_val, (str, ArrayLiteral, ObjectCreation)):
                 if not self.comp_type(var_decl.var_type, init_val):
                     if var_decl.is_final: raise TypeMismatchInConstant(var_decl)
                     else: raise TypeMismatchInStatement(var_decl)
@@ -219,7 +221,7 @@ class StaticChecker(ASTVisitor):
                     can_init_final = True
             if lhs.is_final and not can_init_final: raise CannotAssignToConstant(node)
 
-        if isinstance(lhs, VarAttInfo) and type(rhs) == str:
+        if isinstance(lhs, VarAttInfo) and isinstance(rhs, (str, ObjectCreation)):
             if not self.comp_type(lhs._type, rhs):
                 raise TypeMismatchInStatement(node)
 
@@ -261,9 +263,11 @@ class StaticChecker(ASTVisitor):
     def visit_unary_op(self, node: "UnaryOp", o: Any = None):
         operand = self.visit(node.operand, o)
 
-    def visit_object_creation(self, node: "ObjectCreation", o: Any = None):
-        self.undeclared_check(o, node.class_name, self.CLASS_TXT)
+    def visit_object_creation(self, node: "ObjectCreation", o: tuple[Any, list] = ()): # type: ignore[reportIncompatibleMethodOverride]
+        obj = o[0]
+        self.undeclared_check(obj, node.class_name, self.CLASS_TXT)
         list(map(lambda arg: self.visit(arg, o), node.args))
+        return node
 
     def visit_identifier(self, node: "Identifier", o: Any = None):
         obj = o[0] if type(o) is tuple else o

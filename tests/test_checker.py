@@ -197,3 +197,16 @@ def test_17():
    """
    expected = "TypeMismatchInStatement(VariableDecl(ArrayType(PrimitiveType(int)[5]), [Variable(arr = ArrayLiteral({IntLiteral(1), IntLiteral(2), IntLiteral(3), IntLiteral(4)}))]))"
    assert Checker(source).check_from_source() == expected
+
+def test_18():
+    """Test valid ClassType"""
+    source = """
+        class Math {}
+        class Test {
+            void test() {
+                Math math := new Math();
+            }
+        }
+    """
+    expected = "Static checking passed"
+    assert Checker(source).check_from_source() == expected
