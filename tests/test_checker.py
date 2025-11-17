@@ -148,7 +148,7 @@ class ConditionalError {
     expected = "TypeMismatchInStatement(IfStatement(if Identifier(x) then BlockStatement(stmts=[AssignmentStatement(IdLHS(x) := IntLiteral(1))])))"
     assert Checker(source).check_from_source() == expected
 
-def test_14():
+def test_014():
     """Test TypeMismatchInStatement for with bool"""
     source = """
         class ForCheck {
@@ -162,7 +162,7 @@ def test_14():
     expected = "TypeMismatchInStatement(ForStatement(for x := IntLiteral(5) to IntLiteral(10) do BlockStatement(stmts=[])))"
     assert Checker(source).check_from_source() == expected
 
-def test_15():
+def test_015():
     """Test TypeMismatchInStatement assign int to float (passed)"""
     source = """
     class ValidCoercion {
@@ -176,7 +176,7 @@ def test_15():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_16():
+def test_016():
     """Test TypeMismatchInStatement assign int to float (passed)"""
     source = """
     class ValidCoercion {
@@ -190,7 +190,7 @@ def test_16():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_17():
+def test_017():
    """Test TypeMismatchInStatement with array (wrong arr size)"""
    source = """
    class Test {
@@ -203,7 +203,7 @@ def test_17():
    expected = "TypeMismatchInStatement(VariableDecl(ArrayType(PrimitiveType(int)[5]), [Variable(arr = ArrayLiteral({IntLiteral(1), IntLiteral(2), IntLiteral(3), IntLiteral(4)}))]))"
    assert Checker(source).check_from_source() == expected
 
-def test_18():
+def test_018():
     """Test valid ClassType"""
     source = """
         class Math {}
@@ -217,7 +217,7 @@ def test_18():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_19():
+def test_019():
     """Test valid SuperClass"""
     source = """
         class Super {}
@@ -232,7 +232,7 @@ def test_19():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_20():
+def test_020():
     """Test valid return"""
     source = """
         class Test {
@@ -245,7 +245,7 @@ def test_20():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_21():
+def test_021():
     """Test TypeMismatchInStatement return"""
     source = """
         class Test {
@@ -258,7 +258,7 @@ def test_21():
     expected = "TypeMismatchInStatement(ReturnStatement(return BoolLiteral(True)))"
     assert Checker(source).check_from_source() == expected
 
-def test_22():
+def test_022():
     """Test TypeMismatchInStatement with void lhs"""
     source = """
         class Test {
@@ -271,7 +271,7 @@ def test_22():
     expected = "TypeMismatchInStatement(VariableDecl(PrimitiveType(void), [Variable(a = IntLiteral(5))]))"
     assert Checker(source).check_from_source() == expected
 
-def test_23():
+def test_023():
     """Test TypeMismatchInStatement in CallStmt"""
     source = """
         class Test {
@@ -286,7 +286,7 @@ def test_23():
     # assert ASTGenerator(source).generate().__str__() == expected
     assert Checker(source).check_from_source() == expected
 
-def test_24():
+def test_024():
     """Test TypeMismatchInStatement in MethodCall"""
     source = """
         class Math {}
@@ -301,7 +301,7 @@ def test_24():
     expected = "TypeMismatchInStatement(VariableDecl(ClassType(Math), [Variable(math = IntLiteral(5))]))"
     assert Checker(source).check_from_source() == expected
 
-def test_25():
+def test_025():
     """Test io"""
     source = """
         class Math {
@@ -315,7 +315,7 @@ def test_25():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_26():
+def test_026():
     """Test TypeMismatchInExpression with array decl"""
     source = """
         class Test {
@@ -327,7 +327,7 @@ def test_26():
     expected = "TypeMismatchInStatement(VariableDecl(ArrayType(PrimitiveType(int)[1]), [Variable(arr = ArrayLiteral({FloatLiteral(1.0)}))]))"
     assert Checker(source).check_from_source() == expected
 
-def test_27():
+def test_027():
     """Test TypeMismatchInExpression with array access"""
     source = """
         class Test {
@@ -340,7 +340,7 @@ def test_27():
     expected = "TypeMismatchInExpression(PostfixExpression(Identifier(arr)[BoolLiteral(True)]))"
     assert Checker(source).check_from_source() == expected
 
-def test_28():
+def test_028():
     """Test TypeMismatchInExpression with array access"""
     source = """
         class Test {
@@ -353,7 +353,7 @@ def test_28():
     expected = "TypeMismatchInExpression(PostfixExpression(Identifier(arr)[IntLiteral(1)]))"
     assert Checker(source).check_from_source() == expected
 
-def test_29():
+def test_029():
     """Test valid array access"""
     source = """
         class Test {
@@ -366,7 +366,7 @@ def test_29():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_30():
+def test_030():
     """Test valid binary_op"""
     source = """
         class Test {
@@ -378,7 +378,7 @@ def test_30():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_31():
+def test_031():
     """Test valid boolean binary_op"""
     source = """
         class Test {
@@ -390,7 +390,7 @@ def test_31():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_32():
+def test_032():
     """Test TypeMismatchInExpression with boolean binary_op"""
     source = """
         class Test {
@@ -402,7 +402,7 @@ def test_32():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_33():
+def test_033():
     """Test TypeMismatchInExpression with comparison binary_op"""
     source = """
         class Test {
@@ -414,7 +414,7 @@ def test_33():
     expected = "TypeMismatchInExpression(BinaryOp(IntLiteral(3), >, BoolLiteral(True)))"
     assert Checker(source).check_from_source() == expected
 
-def test_34():
+def test_034():
     """Test TypeMismatchInExpression with not ClassType MethodCall"""
     source = """
         class Test {
@@ -427,7 +427,7 @@ def test_34():
     expected = "TypeMismatchInExpression(PostfixExpression(Identifier(a).get()))"
     assert Checker(source).check_from_source() == expected
 
-def test_35():
+def test_035():
     """Test TypeMismatchInExpression with void MethodCall"""
     source = """
         class Test {
@@ -440,7 +440,7 @@ def test_35():
     expected = "TypeMismatchInExpression(PostfixExpression(ThisExpression(this).get()))"
     assert Checker(source).check_from_source() == expected
 
-def test_36():
+def test_036():
     """Test valid chain MethodCall and MemberAccess"""
     source = """
         class Math {
@@ -460,7 +460,7 @@ def test_36():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_37():
+def test_037():
     """Test valid chain MethodCall and MemberAccess (Shape -> Circle) with OOP"""
     source = """
         class Shape {
@@ -487,7 +487,7 @@ def test_37():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_38():
+def test_038():
     """Test extremely valid constant decl (passed)"""
     source = """
         class Shape {
@@ -517,7 +517,7 @@ def test_38():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_39():
+def test_039():
     """ Test break/continue outside loop"""
     source = """
         class Test {
@@ -533,7 +533,7 @@ def test_39():
     expected = "MustInLoop(BreakStatement())"
     assert Checker(source).check_from_source() == expected
 
-def test_40():
+def test_040():
     """ Test break/continue outside loop"""
     source = """
         class Test {
@@ -548,7 +548,7 @@ def test_40():
     expected = "MustInLoop(ContinueStatement())"
     assert Checker(source).check_from_source() == expected
 
-def test_41():
+def test_041():
     """ Test valid break/continue in nested loop """
     source = """
     class Test {
@@ -572,7 +572,7 @@ def test_41():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_42():
+def test_042():
     """ Test IllegalConstantExpression """
     source = """
     class Test {
@@ -584,7 +584,7 @@ def test_42():
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_43():
+def test_043():
     """Test extreme valid ConstantExpression"""
     source = """
 # Valid: Proper constant expressions
@@ -602,7 +602,7 @@ class ValidConstantExpressions {
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_44():
+def test_044():
     """Test IllegalConstantExpression"""
     source = """
 # Error: Complex expressions with variables
@@ -620,7 +620,7 @@ class ComplexIllegalExpression {
     expected = "IllegalConstantExpression(AttributeDecl(final PrimitiveType(int), [Attribute(result = BinaryOp(ParenthesizedExpression((BinaryOp(Identifier(a), *, IntLiteral(2)))), +, IntLiteral(5)))]))"
     assert Checker(source).check_from_source() == expected
 
-def test_45():
+def test_045():
     """Test IllegalConstantExpression"""
     source = """
 # Error: Method calls in constant expression
@@ -635,7 +635,7 @@ class MethodCallInConstant {
     expected = "IllegalConstantExpression(AttributeDecl(final PrimitiveType(int), [Attribute(value = .getValue())]))"
     assert Checker(source).check_from_source() == expected
 
-def test_46():
+def test_046():
     """Test IllegalConstantExpression"""
     source = """
 # Error: Array element access in constant
@@ -647,7 +647,7 @@ class ArrayAccessInConstant {
     expected = "IllegalConstantExpression(AttributeDecl(final PrimitiveType(int), [Attribute(FIRST = PostfixExpression(Identifier(NUMBERS)[IntLiteral(0)]))]))"
     assert Checker(source).check_from_source() == expected
 
-def test_47():
+def test_047():
     """Test valid MemberAccess"""
     source = """
 # Setup classes for examples
@@ -696,7 +696,7 @@ class GraduateStudent extends Student {
     expected = "Static checking passed"
     assert Checker(source).check_from_source() == expected
 
-def test_48():
+def test_048():
     """Test illegalMemberAccess"""
     source = """
 # Setup classes for examples
@@ -731,7 +731,7 @@ class StaticAccessError {
     expected = "IllegalMemberAccess(PostfixExpression(Identifier(Student).school))"
     assert Checker(source).check_from_source() == expected
 
-def test_49():
+def test_049():
     """Test illegalMemberAccess"""
     source = """
 # Setup classes for examples
@@ -765,7 +765,7 @@ class StaticAccessError {
     expected = "IllegalMemberAccess(PostfixExpression(Identifier(Student).setName(StringLiteral('John'))))"
     assert Checker(source).check_from_source() == expected
 
-def test_50():
+def test_050():
     """Test illegalMemberAccess"""
     source = """
 # Setup classes for examples
@@ -801,7 +801,7 @@ class InstanceAccessError {
     expected = "IllegalMemberAccess(PostfixExpression(Identifier(s).totalStudents))"
     assert Checker(source).check_from_source() == expected
 
-def test_51():
+def test_051():
     """Test illegalMemberAccess"""
     source = """
 # Setup classes for examples
@@ -1570,4 +1570,137 @@ def test_100():
     }
     """
     expected = "Static checking passed"
+    assert Checker(source).check_from_source() == expected
+
+def test_101():
+    """Test NoEntryPoint - no main method"""
+    source = """
+    class Test {
+        void test() {
+            int x := 5;
+        }
+    }
+    """
+    expected = "No Entry Point"
+    assert Checker(source).check_from_source() == expected
+
+def test_102():
+    """Test NoEntryPoint - non-static main"""
+    source = """
+    class Test {
+        void main() {
+            int x := 5;
+        }
+    }
+    """
+    expected = "No Entry Point"
+    assert Checker(source).check_from_source() == expected
+
+def test_103():
+    """Test NoEntryPoint - main with parameters"""
+    source = """
+    class Test {
+        static void main(int x) {
+            int y := 5;
+        }
+    }
+    """
+    expected = "No Entry Point"
+    assert Checker(source).check_from_source() == expected
+
+def test_104():
+    """Test NoEntryPoint - main with non-void return"""
+    source = """
+    class Test {
+        static int main() {
+            return 5;
+        }
+    }
+    """
+    expected = "No Entry Point"
+    assert Checker(source).check_from_source() == expected
+
+def test_105():
+    """Test NoEntryPoint - main with multiple parameters"""
+    source = """
+    class Test {
+        static void main(int x; string s) {
+            int y := 5;
+        }
+    }
+    """
+    expected = "No Entry Point"
+    assert Checker(source).check_from_source() == expected
+
+def test_106():
+    """Test NoEntryPoint - main is an attribute not a method"""
+    source = """
+    class Test {
+        static int main := 5;
+        void test() {
+            int x := main;
+        }
+    }
+    """
+    expected = "No Entry Point"
+    assert Checker(source).check_from_source() == expected
+
+def test_107():
+    """Test valid entry point - static void main()"""
+    source = """
+    class Test {
+        static void main() {
+            int x := 5;
+        }
+    }
+    """
+    expected = "Static checking passed"
+    assert Checker(source).check_from_source() == expected
+
+def test_108():
+    """Test valid entry point with other methods"""
+    source = """
+    class Test {
+        void helper() {
+            int x := 10;
+        }
+        static void main() {
+            int y := 5;
+        }
+        int calculate(int a; int b) {
+            return a + b;
+        }
+    }
+    """
+    expected = "Static checking passed"
+    assert Checker(source).check_from_source() == expected
+
+def test_109():
+    """Test valid entry point in different class"""
+    source = """
+    class Helper {
+        void assist() {
+            int x := 1;
+        }
+    }
+    class Main {
+        static void main() {
+            Helper h := new Helper();
+            h.assist();
+        }
+    }
+    """
+    expected = "Static checking passed"
+    assert Checker(source).check_from_source() == expected
+
+def test_110():
+    """Test NoEntryPoint - main returns string"""
+    source = """
+    class Test {
+        static string main() {
+            return "hello";
+        }
+    }
+    """
+    expected = "No Entry Point"
     assert Checker(source).check_from_source() == expected

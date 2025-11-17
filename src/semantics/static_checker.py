@@ -501,6 +501,45 @@ class StaticChecker(ASTVisitor):
         # checking with filled symbol_dict (useful for OOP)
         self.first_time = False
         reduce(lambda class_names, class_decl: self.visit(class_decl, class_names), node.class_decls, o_filled)
+        
+        # Check for valid entry point: static void main() with no parameters
+        self._check_entry_point(o_filled)
+    
+    def _check_entry_point(self, o: list[dict]):
+        """
+        Check for a valid entry point in the program.
+        A valid entry point must be:
+        - Named 'main'
+        - Static
+        - Return void
+        - Have no parameters
+        """
+        # Look for 'main' method in the class scope (o[1])
+        if len(o) < 2:
+            raise NoEntryPoint()
+        
+        main_method = o[1].get('main', None)
+        
+        # Check if main exists
+        if main_method is None:
+            raise NoEntryPoint()
+        
+        # Check if it's a MethodInfo (not an attribute or something else)
+        if not isinstance(main_method, MethodInfo):
+            raise NoEntryPoint()
+        
+        # Check if main is static
+        if not main_method.is_static:
+            raise NoEntryPoint()
+        
+        # Check if main returns void
+        if not (isinstance(main_method.return_type, PrimitiveType) and 
+                main_method.return_type.type_name == "void"):
+            raise NoEntryPoint()
+        
+        # Check if main has no parameters
+        if len(main_method.params) != 0:
+            raise NoEntryPoint()
 
     def visit_class_decl(self, node: "ClassDecl", o: list[dict] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
         if self.first_time:
