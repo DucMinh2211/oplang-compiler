@@ -115,7 +115,7 @@ class ASTGeneration(OPLangVisitor):
             constructor_ctx = ctx.copyConstructor()
             name = constructor_ctx.ID(0).getText()
             param_type = ClassType(constructor_ctx.ID(1).getText())
-            params = [Parameter(param_type, 'other')]
+            params = [Parameter(param_type, constructor_ctx.ID(2).getText())]
         elif ctx.customConstructor():
             constructor_ctx = ctx.customConstructor()
             name = constructor_ctx.ID().getText()

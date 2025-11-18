@@ -68,7 +68,7 @@ constructor
     ;
 
 defConstructor: ID LPAREN RPAREN blockStatement;
-copyConstructor: ID LPAREN ID 'other' RPAREN blockStatement;
+copyConstructor: ID LPAREN ID ID RPAREN blockStatement;
 customConstructor: ID LPAREN paramNulist RPAREN blockStatement;
 
 destructor: TILDE ID LPAREN RPAREN blockStatement;

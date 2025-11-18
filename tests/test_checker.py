@@ -1704,3 +1704,284 @@ def test_110():
     """
     expected = "No Entry Point"
     assert Checker(source).check_from_source() == expected
+
+def test_111():
+    """Test error priority: Undeclared (P1) over TypeMismatch (P2)"""
+    source = """
+    class Test {
+        static void main() {
+            int x := unknownVar;
+            int y := "string";
+        }
+    }
+    """
+    expected = "UndeclaredIdentifier(unknownVar)"
+    assert Checker(source).check_from_source() == expected
+
+def test_112():
+    """Test error priority: Redeclared (P1) over TypeMismatch (P2)"""
+    source = """
+    class Test {
+        static void main() {
+            int x := 5;
+            int x := 10;
+            int y := "hello";
+        }
+    }
+    """
+    expected = "Redeclared(Variable, x)"
+    assert Checker(source).check_from_source() == expected
+
+def test_113():
+    """Test error priority: UndeclaredClass (P1) over TypeMismatch (P2)"""
+    source = """
+    class Test {
+        static void main() {
+            UnknownClass obj := new UnknownClass();
+            int x := "not an int";
+        }
+    }
+    """
+    expected = "UndeclaredClass(UnknownClass)"
+    assert Checker(source).check_from_source() == expected
+
+def test_114():
+    """Test error priority: UndeclaredAttribute (P1) over IllegalMemberAccess (P3)"""
+    source = """
+    class Counter {
+        static int count := 0;
+    }
+    class Test {
+        static void main() {
+            Counter c := new Counter();
+            int x := c.unknown;
+            int y := c.count;
+        }
+    }
+    """
+    expected = "UndeclaredAttribute(unknown)"
+    assert Checker(source).check_from_source() == expected
+
+def test_115():
+    """Test error priority: TypeMismatch (P2) over IllegalMemberAccess (P3)"""
+    source = """
+    class Counter {
+        static int count := 0;
+    }
+    class Test {
+        static void main() {
+            int x := "string not int";
+            Counter c := new Counter();
+            int y := c.count;
+        }
+    }
+    """
+    expected = "TypeMismatchInStatement(VariableDecl(PrimitiveType(int), [Variable(x = StringLiteral('string not int'))]))"
+    assert Checker(source).check_from_source() == expected
+
+def test_116():
+    """Test error priority: TypeMismatch (P2) over MustInLoop (P4)"""
+    source = """
+    class Test {
+        static void main() {
+            int x := true;
+            break;
+        }
+    }
+    """
+    expected = "TypeMismatchInStatement(VariableDecl(PrimitiveType(int), [Variable(x = BoolLiteral(True))]))"
+    assert Checker(source).check_from_source() == expected
+
+def test_117():
+    """Test error priority: TypeMismatch (P2) over CannotAssignToConstant (P5)"""
+    source = """
+    class Test {
+        static void main() {
+            int x := "not int";
+            final int y := 5;
+            y := 10;
+        }
+    }
+    """
+    expected = "TypeMismatchInStatement(VariableDecl(PrimitiveType(int), [Variable(x = StringLiteral('not int'))]))"
+    assert Checker(source).check_from_source() == expected
+
+def test_118():
+    """Test error priority: IllegalMemberAccess (P3) over MustInLoop (P4)"""
+    source = """
+    class Counter {
+        static int count := 0;
+    }
+    class Test {
+        static void main() {
+            Counter c := new Counter();
+            int x := c.count;
+            break;
+        }
+    }
+    """
+    expected = "IllegalMemberAccess(PostfixExpression(Identifier(c).count))"
+    assert Checker(source).check_from_source() == expected
+
+def test_119():
+    """Test error priority: IllegalMemberAccess (P3) over CannotAssignToConstant (P5)"""
+    source = """
+    class Counter {
+        static int count := 0;
+    }
+    class Test {
+        static void main() {
+            Counter c := new Counter();
+            int x := c.count;
+            final int y := 5;
+            y := 10;
+        }
+    }
+    """
+    expected = "IllegalMemberAccess(PostfixExpression(Identifier(c).count))"
+    assert Checker(source).check_from_source() == expected
+
+def test_120():
+    """Test error priority: MustInLoop (P4) over CannotAssignToConstant (P5)"""
+    source = """
+    class Test {
+        static void main() {
+            final int x := 5;
+            x := 10;
+            break;
+        }
+    }
+    """
+    expected = "MustInLoop(BreakStatement())"
+    assert Checker(source).check_from_source() == expected
+
+def test_121():
+    """Test error priority: MustInLoop (P4) over IllegalArrayLiteral (P6)"""
+    source = """
+    class Test {
+        static void main() {
+            int[2] arr := {1, "string"};
+            continue;
+        }
+    }
+    """
+    expected = "MustInLoop(ContinueStatement())"
+    assert Checker(source).check_from_source() == expected
+
+def test_122():
+    """Test error priority: CannotAssignToConstant (P5) over IllegalArrayLiteral (P6)"""
+    source = """
+    class Test {
+        static void main() {
+            final int x := 5;
+            int[2] arr := {1, "mixed"};
+            x := 10;
+        }
+    }
+    """
+    expected = "CannotAssignToConstant(AssignmentStatement(IdLHS(x) := IntLiteral(10)))"
+    assert Checker(source).check_from_source() == expected
+
+def test_123():
+    """Test error priority: CannotAssignToConstant (P5) over NoEntryPoint (P7)"""
+    source = """
+    class Test {
+        void notMain() {
+            final int x := 5;
+            x := 10;
+        }
+    }
+    """
+    expected = "CannotAssignToConstant(AssignmentStatement(IdLHS(x) := IntLiteral(10)))"
+    assert Checker(source).check_from_source() == expected
+
+def test_124():
+    """Test error priority: IllegalArrayLiteral (P6) over NoEntryPoint (P7)"""
+    source = """
+    class Test {
+        void notMain() {
+            int[3] arr := {1, 2.5, 3};
+        }
+    }
+    """
+    expected = "IllegalArrayLiteral(ArrayLiteral({IntLiteral(1), FloatLiteral(2.5), IntLiteral(3)}))"
+    assert Checker(source).check_from_source() == expected
+
+def test_125():
+    """Test error priority: Multiple declaration errors - first one reported"""
+    source = """
+    class Test {
+        static void main() {
+            int x := unknown1;
+            int y := unknown2;
+        }
+    }
+    """
+    expected = "UndeclaredIdentifier(unknown1)"
+    assert Checker(source).check_from_source() == expected
+
+def test_126():
+    """Test error priority: UndeclaredMethod (P1) over TypeMismatch (P2)"""
+    source = """
+    class Test {
+        static void main() {
+            Test t := new Test();
+            int x := "not int";
+            t.unknownMethod();
+        }
+    }
+    """
+    expected = "UndeclaredMethod(unknownMethod)"
+    assert Checker(source).check_from_source() == expected
+
+def test_127():
+    """Test error priority: Redeclared class (P1) over all others"""
+    source = """
+    class Test {
+        static void main() {}
+    }
+    class Test {
+        void other() {}
+    }
+    """
+    expected = "Redeclared(Class, Test)"
+    assert Checker(source).check_from_source() == expected
+
+def test_128():
+    """Test error priority: TypeMismatchInConstant (P2) over CannotAssignToConstant (P5)"""
+    source = """
+    class Test {
+        final int x := "not int";
+        static void main() {
+            final int y := 5;
+            y := 10;
+        }
+    }
+    """
+    expected = "TypeMismatchInConstant(AttributeDecl(final PrimitiveType(int), [Attribute(x = StringLiteral('not int'))]))"
+    assert Checker(source).check_from_source() == expected
+
+def test_129():
+    """Test error priority: IllegalConstantExpression (P5) over NoEntryPoint (P7)"""
+    source = """
+    class Test {
+        void notMain() {
+            int x := 5;
+            final int y := x;
+        }
+    }
+    """
+    expected = "IllegalConstantExpression(Identifier(x))"
+    assert Checker(source).check_from_source() == expected
+
+def test_130():
+    """Test single NoEntryPoint when no other errors"""
+    source = """
+    class Test {
+        void notMain() {
+            int x := 5;
+        }
+    }
+    """
+    expected = "No Entry Point"
+    assert Checker(source).check_from_source() == expected
