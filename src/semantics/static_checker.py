@@ -566,6 +566,7 @@ class StaticChecker(ASTVisitor):
 
     def visit_attribute_decl(self, node: "AttributeDecl", o: list[dict] = [{}]) -> list[dict] | None: # type: ignore[reportIncompatibleMethodOverride]
         self._check_undecl_class(node.attr_type, o)
+        self.visit(node.attr_type, o)
         obj = reduce(lambda acc, att: self.visit(att, (acc, node)), node.attributes, o)
         return obj
 
@@ -1161,7 +1162,10 @@ class StaticChecker(ASTVisitor):
         return node
 
     def visit_reference_type(self, node: "ReferenceType", o: Any = None):
-        self.visit(node.referenced_type, o)
+        ref_type = self.visit(node.referenced_type, o)
+        if ref_type == "void":
+            raise TypeMismatchInExpression(node)
+        return ref_type
 
     def visit_static_method_invocation(self, node: "MethodCall", o: Any = None):
         list(map(lambda arg: self.visit(arg, o), node.args))

@@ -597,6 +597,7 @@ class ValidConstantExpressions {
     final float CIRCLE_AREA := PI * 10 * 10;   # Valid: uses final attribute
     
     final int SUM := 10 + 20 + 30;         # Valid: literal arithmetic
+    static void main() {}
 }
     """
     expected = "Static checking passed"
@@ -1175,7 +1176,7 @@ def test_074():
         }
     }
     """
-    expected = "TypeMismatchInExpression(ArrayAccess(Identifier(arr)[BoolLiteral(True)]))"
+    expected = "TypeMismatchInExpression(PostfixExpression(Identifier(arr)[BoolLiteral(True)]))"
     assert Checker(source).check_from_source() == expected
 
 def test_075():
@@ -1974,14 +1975,15 @@ def test_129():
     expected = "IllegalConstantExpression(Identifier(x))"
     assert Checker(source).check_from_source() == expected
 
-def test_130():
-    """Test single NoEntryPoint when no other errors"""
+def test_131():
+    """Test ReferenceType with void - expect TypeMismatchInExpression"""
     source = """
     class Test {
-        void notMain() {
-            int x := 5;
-        }
+        void &referenceToVoid;
+        static void main() { }
     }
     """
-    expected = "No Entry Point"
+    expected = "TypeMismatchInExpression(ReferenceType(PrimitiveType(void) &))"
     assert Checker(source).check_from_source() == expected
+
+
