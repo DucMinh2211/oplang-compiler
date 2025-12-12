@@ -334,7 +334,7 @@ class StaticChecker(ASTVisitor):
         Check if an expression is a valid constant expression.
         Constant expressions can only contain:
         - Literals (int, float, bool, string, array literals with constant elements)
-        - References to other final attributes
+        - References to other final attributes (including this.finalAttr)
         - Operators (no method calls, no array access, no mutable variable access)
         """
         # Literal types are always constant
@@ -365,6 +365,20 @@ class StaticChecker(ASTVisitor):
         if isinstance(expr, ParenthesizedExpression):
             return self.is_constant_expression(expr.expr, o)
         
+        # PostfixExpression - check if it's accessing a final attribute (e.g., this.a)
+        if isinstance(expr, PostfixExpression):
+            # Check if it's this.member access
+            if isinstance(expr.primary, ThisExpression):
+                # Check if there's exactly one postfix op and it's a member access
+                if len(expr.postfix_ops) == 1 and isinstance(expr.postfix_ops[0], MemberAccess):
+                    member_name = expr.postfix_ops[0].member_name
+                    # Look up the member in CLASS scope to check if it's final
+                    if len(o) >= 2 and member_name in o[1]:
+                        var_info = o[1][member_name]
+                        if isinstance(var_info, VarAttInfo):
+                            return var_info.is_final
+            return False
+        
         # Identifier - must be a final attribute, not a mutable variable
         if isinstance(expr, Identifier):
             # Look up the identifier in scopes
@@ -377,9 +391,8 @@ class StaticChecker(ASTVisitor):
                     break
             return False
         
-        # Method calls, object creation, array access, this, member access not allowed
-        if isinstance(expr, (MethodCall, ObjectCreation, ArrayAccess, ThisExpression, 
-                           PostfixExpression, MemberAccess)):
+        # Method calls, object creation, array access not allowed
+        if isinstance(expr, (MethodCall, ObjectCreation, ArrayAccess)):
             return False
         
         # Default: not a constant expression
@@ -826,6 +839,10 @@ class StaticChecker(ASTVisitor):
         if isinstance(op, VarAttInfo):
             op = op._type
         
+        # If op is an undeclared error, raise it directly (these have higher priority)
+        if isinstance(op, (UndeclaredAttribute, UndeclaredClass)):
+            raise op
+        
         if isinstance(op, IllegalMemberAccess): raise IllegalMemberAccess(node)
         if not isinstance(op, (PrimitiveType, ArrayType, ClassType)): raise TypeMismatchInExpression(node)
         if self.get_type_name(op) == "void" and not isinstance(parent, MethodInvocationStatement): raise TypeMismatchInExpression(node)
@@ -1082,8 +1099,26 @@ class StaticChecker(ASTVisitor):
 
     def visit_identifier(self, node: "Identifier", o: Any = None):
         obj = o[0] if type(o) is tuple else o
-        self.undeclared_check(obj, node.name, self.ID_TXT)
-        result = next(filter(lambda value: value is not None, (scope.get(node.name, None) for scope in reversed(obj))))
+        
+        # Attributes can only be accessed via "this." or "ClassName." syntax
+        # Skip CLASS scope (index 1) when looking up identifiers
+        # Search in: METHOD scope (params), BLOCK scope (local vars), GLOBAL scope (classes, io)
+        scopes_to_search = []
+        for i, scope in enumerate(obj):
+            # Skip CLASS scope (index 1) which contains attributes
+            if i != 1:
+                scopes_to_search.append(scope)
+        
+        # Check if identifier exists in allowed scopes
+        result = None
+        for scope in reversed(scopes_to_search):
+            if node.name in scope:
+                result = scope[node.name]
+                break
+        
+        if result is None:
+            raise UndeclaredIdentifier(node.name)
+        
         return result
 
     def visit_this_expression(self, node: "ThisExpression", o: Any = None): # type: ignore[reportIncompatibleMethodOverride]

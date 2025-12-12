@@ -89,6 +89,36 @@ class Test {
     expected = "IllegalArrayLiteral(ArrayLiteral({BoolLiteral(True), IntLiteral(42)}))"
     assert Checker(source).check_from_source() == expected
 
+def test_008():
+    """Test instance attribute must be accessed with this."""
+    source = """
+class Test {
+    int x := 5;
+    
+    void method() {
+        int y := x;
+    }
+    
+    static void main() {}
+}
+"""
+    expected = "UndeclaredIdentifier(x)"
+    assert Checker(source).check_from_source() == expected
+
+def test_009():
+    """Test static attribute must be accessed with ClassName."""
+    source = """
+class Test {
+    static int x := 5;
+    
+    static void main() {
+        int y := x;
+    }
+}
+"""
+    expected = "UndeclaredIdentifier(x)"
+    assert Checker(source).check_from_source() == expected
+
 def test_010():
     """Test TypeMismatchInConstant"""
     source = """
@@ -510,7 +540,7 @@ def test_038():
             final string APP_NAME := "MyApp";     # Valid
             Shape CIRCLE := Circle(3);
             static void main() {
-                io.writeFloat(CIRCLE.get_area());
+                io.writeFloat(this.CIRCLE.get_area());
             }
         }
     """
@@ -577,7 +607,7 @@ def test_042():
     source = """
     class Test {
         final int a := 3;
-        final int b := a;
+        final int b := this.a;
         static void main() {}
     }
     """
@@ -590,11 +620,11 @@ def test_043():
 # Valid: Proper constant expressions
 class ValidConstantExpressions {
     final int MAX_SIZE := 100;
-    final int DOUBLE_SIZE := MAX_SIZE * 2;     # Valid: uses immutable attribute
+    final int DOUBLE_SIZE := this.MAX_SIZE * 2;     # Valid: uses immutable attribute
     final string MESSAGE := "Hello" ^ "World"; # Valid: literal concatenation
     final boolean FLAG := true && false;       # Valid: boolean literals with operators
     final float PI := 3.14159;
-    final float CIRCLE_AREA := PI * 10 * 10;   # Valid: uses final attribute
+    final float CIRCLE_AREA := this.PI * 10 * 10;   # Valid: uses final attribute
     
     final int SUM := 10 + 20 + 30;         # Valid: literal arithmetic
     static void main() {}
@@ -1552,14 +1582,14 @@ def test_100():
     class Calculator {
         int value;
         Calculator(int initial) {
-            value := initial;
+            this.value := initial;
         }
         int add(int x) {
-            value := value + x;
-            return value;
+            this.value := this.value + x;
+            return this.value;
         }
         int getValue() {
-            return value;
+            return this.value;
         }
     }
     class Test {
@@ -1639,7 +1669,7 @@ def test_106():
     class Test {
         static int main := 5;
         void test() {
-            int x := main;
+            int x := this.main;
         }
     }
     """
@@ -1975,7 +2005,7 @@ def test_129():
     expected = "IllegalConstantExpression(Identifier(x))"
     assert Checker(source).check_from_source() == expected
 
-def test_131():
+def test_130():
     """Test ReferenceType with void - expect TypeMismatchInExpression"""
     source = """
     class Test {
@@ -1985,5 +2015,8 @@ def test_131():
     """
     expected = "TypeMismatchInExpression(ReferenceType(PrimitiveType(void) &))"
     assert Checker(source).check_from_source() == expected
+
+
+
 
 
