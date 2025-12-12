@@ -99,6 +99,25 @@ class StaticChecker(ASTVisitor):
     Also checks for valid entry point: static void main() with no parameters.
     """
     first_time = True # for filling symbol_dict without actually checking for symbol
+    errors = []  # Collect all errors during checking
+    
+    # Error priority - lower number = higher priority
+    ERROR_PRIORITY = {
+        Redeclared: 1,
+        UndeclaredIdentifier: 1,
+        UndeclaredClass: 1,
+        UndeclaredAttribute: 1,
+        UndeclaredMethod: 1,
+        TypeMismatchInStatement: 2,
+        TypeMismatchInExpression: 2,
+        TypeMismatchInConstant: 2,
+        IllegalMemberAccess: 2,
+        IllegalConstantExpression: 3,
+        MustInLoop: 4,
+        CannotAssignToConstant: 5,
+        IllegalArrayLiteral: 6,
+        NoEntryPoint: 7,
+    }
 
     CLASS_TXT = "Class"
     ATT_TXT = "Attribute"
@@ -370,7 +389,8 @@ class StaticChecker(ASTVisitor):
         for scope in o:
             if "for stmt" in scope:
                 return
-        raise MustInLoop(node)
+        # MustInLoop is P4 - collect instead of raise
+        self._collect_error(MustInLoop(node))
 
     def undeclared_check(self, o: list[dict], name: str, kind: str):
         for scope in o:
@@ -488,7 +508,26 @@ class StaticChecker(ASTVisitor):
         return lhs_type == rhs_type
 
     def check_program(self, node):
-        self.visit(node)
+        self.errors = []  # Reset errors for each check
+        try:
+            self.visit(node)
+        except StaticError:
+            # If error was raised, it's already the highest priority
+            raise
+        # If no errors raised but we collected some, raise highest priority
+        if self.errors:
+            self._raise_highest_priority_error()
+    
+    def _raise_highest_priority_error(self):
+        """Raise the error with highest priority from collected errors."""
+        if not self.errors:
+            return
+        highest_priority_error = min(self.errors, key=lambda e: self.ERROR_PRIORITY.get(type(e), 999))
+        raise highest_priority_error
+    
+    def _collect_error(self, error: StaticError):
+        """Collect an error instead of raising it immediately."""
+        self.errors.append(error)
 
     def visit_program(self, node: "Program", o: Any = None):
         o_with_io = self.visit(self.get_io_class(), [{}])
@@ -503,7 +542,11 @@ class StaticChecker(ASTVisitor):
         reduce(lambda class_names, class_decl: self.visit(class_decl, class_names), node.class_decls, o_filled)
         
         # Check for valid entry point: static void main() with no parameters
-        self._check_entry_point(o_filled)
+        # NoEntryPoint is P7 - collect instead of raise
+        try:
+            self._check_entry_point(o_filled)
+        except NoEntryPoint as e:
+            self._collect_error(e)
     
     def _check_entry_point(self, o: list[dict]):
         """
@@ -706,7 +749,10 @@ class StaticChecker(ASTVisitor):
             for scope in o:
                 if scope.get("can init final", None):
                     can_init_final = True
-            if lhs.is_final and not can_init_final: raise CannotAssignToConstant(node)
+            # CannotAssignToConstant is P5 - collect instead of raise
+            if lhs.is_final and not can_init_final:
+                self._collect_error(CannotAssignToConstant(node))
+                return o
 
         # Extract type from VarAttInfo if needed
         rhs_type = rhs
@@ -1035,11 +1081,13 @@ class StaticChecker(ASTVisitor):
         elems: list = list(map(lambda elem: self.visit(elem, o), node.value))
         
         # Check for IllegalArrayLiteral - all elements must have the same type
+        # IllegalArrayLiteral is P6 - collect instead of raise
         if elems:
             first_elem_type = elems[0]
             for ele_type in elems[1:]:
                 if ele_type != first_elem_type:
-                    raise IllegalArrayLiteral(node)
+                    self._collect_error(IllegalArrayLiteral(node))
+                    break  # Only collect once
 
         return node
 
