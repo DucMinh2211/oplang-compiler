@@ -538,8 +538,13 @@ class StaticChecker(ASTVisitor):
         o_filled = reduce(lambda class_names, class_decl: self.visit(class_decl, class_names), node.class_decls, o_with_io)
 
         # checking with filled symbol_dict (useful for OOP)
+        # Try to visit each class and collect all errors
         self.first_time = False
-        reduce(lambda class_names, class_decl: self.visit(class_decl, class_names), node.class_decls, o_filled)
+        for class_decl in node.class_decls:
+            try:
+                self.visit(class_decl, o_filled)
+            except StaticError as e:
+                self._collect_error(e)
         
         # Check for valid entry point: static void main() with no parameters
         # NoEntryPoint is P7 - collect instead of raise
@@ -673,8 +678,22 @@ class StaticChecker(ASTVisitor):
         o_method[2]['current method'] = method_info  # Store in METHOD scope (o_method[2])
         o_params: list = reduce(lambda acc, param: self.visit(param, acc), node.params, o_method)
         o_block = o_params + [{}]  # Add BLOCK scope for variables
-        o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_block)
-        reduce(lambda acc, stmt: self.visit(stmt, acc), node.body.statements, o_vars_params)
+        
+        # Visit variable declarations and collect errors
+        o_vars_params = o_block
+        for var_decl in node.body.var_decls:
+            try:
+                o_vars_params = self.visit(var_decl, o_vars_params)
+            except StaticError as e:
+                self._collect_error(e)
+        
+        # Visit statements and collect errors to check priority
+        for stmt in node.body.statements:
+            try:
+                self.visit(stmt, o_vars_params)
+            except StaticError as e:
+                self._collect_error(e)
+        
         return o[:2]  # Return only GLOBAL and CLASS scopes, discard METHOD scope
 
     def visit_parameter(self, node: "Parameter", o: Any = None):
@@ -685,7 +704,18 @@ class StaticChecker(ASTVisitor):
 
     def visit_variable_decl(self, node: "VariableDecl", o: Any = None):
         self._check_undecl_class(node.var_type, o)
-        return reduce(lambda vars, var: self.visit(var, (vars, node)), node.variables, o)
+        # Visit each variable and collect errors
+        result = o
+        for var in node.variables:
+            try:
+                result = self.visit(var, (result, node))
+            except StaticError as e:
+                self._collect_error(e)
+                # Still add variable to scope even if there's an error, so later code can reference it
+                var_name = var.name if hasattr(var, 'name') else None
+                if var_name and var_name not in result[-1]:
+                    result[-1][var_name] = VarAttInfo(node.is_final, node.var_type, var)
+        return result
 
     def visit_variable(self, node: "Variable", o: Any = None):
         obj = o[0]
