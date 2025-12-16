@@ -1,5 +1,16 @@
-build/
+.DS_Store
 venv/
+.antlr/
+build/
 reports/
 __pycache__/
 *.pyc
+*.class
+*.jar
+*.interp
+*.tokens
+debug_test.py
+.vscode/
+.idea/
+*.log
+*.DS_Store
