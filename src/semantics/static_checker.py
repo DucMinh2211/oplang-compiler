@@ -99,6 +99,25 @@ class StaticChecker(ASTVisitor):
     Also checks for valid entry point: static void main() with no parameters.
     """
     first_time = True # for filling symbol_dict without actually checking for symbol
+    errors = []  # Collect all errors during checking
+    
+    # Error priority - lower number = higher priority
+    ERROR_PRIORITY = {
+        Redeclared: 1,
+        UndeclaredIdentifier: 1,
+        UndeclaredClass: 1,
+        UndeclaredAttribute: 1,
+        UndeclaredMethod: 1,
+        TypeMismatchInStatement: 2,
+        TypeMismatchInExpression: 2,
+        TypeMismatchInConstant: 2,
+        IllegalMemberAccess: 2,
+        IllegalConstantExpression: 3,
+        MustInLoop: 4,
+        CannotAssignToConstant: 5,
+        IllegalArrayLiteral: 6,
+        NoEntryPoint: 7,
+    }
 
     CLASS_TXT = "Class"
     ATT_TXT = "Attribute"
@@ -315,7 +334,7 @@ class StaticChecker(ASTVisitor):
         Check if an expression is a valid constant expression.
         Constant expressions can only contain:
         - Literals (int, float, bool, string, array literals with constant elements)
-        - References to other final attributes
+        - References to other final attributes (including this.finalAttr)
         - Operators (no method calls, no array access, no mutable variable access)
         """
         # Literal types are always constant
@@ -346,6 +365,20 @@ class StaticChecker(ASTVisitor):
         if isinstance(expr, ParenthesizedExpression):
             return self.is_constant_expression(expr.expr, o)
         
+        # PostfixExpression - check if it's accessing a final attribute (e.g., this.a)
+        if isinstance(expr, PostfixExpression):
+            # Check if it's this.member access
+            if isinstance(expr.primary, ThisExpression):
+                # Check if there's exactly one postfix op and it's a member access
+                if len(expr.postfix_ops) == 1 and isinstance(expr.postfix_ops[0], MemberAccess):
+                    member_name = expr.postfix_ops[0].member_name
+                    # Look up the member in CLASS scope to check if it's final
+                    if len(o) >= 2 and member_name in o[1]:
+                        var_info = o[1][member_name]
+                        if isinstance(var_info, VarAttInfo):
+                            return var_info.is_final
+            return False
+        
         # Identifier - must be a final attribute, not a mutable variable
         if isinstance(expr, Identifier):
             # Look up the identifier in scopes
@@ -358,9 +391,8 @@ class StaticChecker(ASTVisitor):
                     break
             return False
         
-        # Method calls, object creation, array access, this, member access not allowed
-        if isinstance(expr, (MethodCall, ObjectCreation, ArrayAccess, ThisExpression, 
-                           PostfixExpression, MemberAccess)):
+        # Method calls, object creation, array access not allowed
+        if isinstance(expr, (MethodCall, ObjectCreation, ArrayAccess)):
             return False
         
         # Default: not a constant expression
@@ -370,7 +402,8 @@ class StaticChecker(ASTVisitor):
         for scope in o:
             if "for stmt" in scope:
                 return
-        raise MustInLoop(node)
+        # MustInLoop is P4 - collect instead of raise
+        self._collect_error(MustInLoop(node))
 
     def undeclared_check(self, o: list[dict], name: str, kind: str):
         for scope in o:
@@ -488,7 +521,26 @@ class StaticChecker(ASTVisitor):
         return lhs_type == rhs_type
 
     def check_program(self, node):
-        self.visit(node)
+        self.errors = []  # Reset errors for each check
+        try:
+            self.visit(node)
+        except StaticError:
+            # If error was raised, it's already the highest priority
+            raise
+        # If no errors raised but we collected some, raise highest priority
+        if self.errors:
+            self._raise_highest_priority_error()
+    
+    def _raise_highest_priority_error(self):
+        """Raise the error with highest priority from collected errors."""
+        if not self.errors:
+            return
+        highest_priority_error = min(self.errors, key=lambda e: self.ERROR_PRIORITY.get(type(e), 999))
+        raise highest_priority_error
+    
+    def _collect_error(self, error: StaticError):
+        """Collect an error instead of raising it immediately."""
+        self.errors.append(error)
 
     def visit_program(self, node: "Program", o: Any = None):
         o_with_io = self.visit(self.get_io_class(), [{}])
@@ -499,11 +551,20 @@ class StaticChecker(ASTVisitor):
         o_filled = reduce(lambda class_names, class_decl: self.visit(class_decl, class_names), node.class_decls, o_with_io)
 
         # checking with filled symbol_dict (useful for OOP)
+        # Try to visit each class and collect all errors
         self.first_time = False
-        reduce(lambda class_names, class_decl: self.visit(class_decl, class_names), node.class_decls, o_filled)
+        for class_decl in node.class_decls:
+            try:
+                self.visit(class_decl, o_filled)
+            except StaticError as e:
+                self._collect_error(e)
         
         # Check for valid entry point: static void main() with no parameters
-        self._check_entry_point(o_filled)
+        # NoEntryPoint is P7 - collect instead of raise
+        try:
+            self._check_entry_point(o_filled)
+        except NoEntryPoint as e:
+            self._collect_error(e)
     
     def _check_entry_point(self, o: list[dict]):
         """
@@ -630,8 +691,22 @@ class StaticChecker(ASTVisitor):
         o_method[2]['current method'] = method_info  # Store in METHOD scope (o_method[2])
         o_params: list = reduce(lambda acc, param: self.visit(param, acc), node.params, o_method)
         o_block = o_params + [{}]  # Add BLOCK scope for variables
-        o_vars_params = reduce(lambda acc, var_decl: self.visit(var_decl, acc), node.body.var_decls, o_block)
-        reduce(lambda acc, stmt: self.visit(stmt, acc), node.body.statements, o_vars_params)
+        
+        # Visit variable declarations and collect errors
+        o_vars_params = o_block
+        for var_decl in node.body.var_decls:
+            try:
+                o_vars_params = self.visit(var_decl, o_vars_params)
+            except StaticError as e:
+                self._collect_error(e)
+        
+        # Visit statements and collect errors to check priority
+        for stmt in node.body.statements:
+            try:
+                self.visit(stmt, o_vars_params)
+            except StaticError as e:
+                self._collect_error(e)
+        
         return o[:2]  # Return only GLOBAL and CLASS scopes, discard METHOD scope
 
     def visit_parameter(self, node: "Parameter", o: Any = None):
@@ -642,7 +717,18 @@ class StaticChecker(ASTVisitor):
 
     def visit_variable_decl(self, node: "VariableDecl", o: Any = None):
         self._check_undecl_class(node.var_type, o)
-        return reduce(lambda vars, var: self.visit(var, (vars, node)), node.variables, o)
+        # Visit each variable and collect errors
+        result = o
+        for var in node.variables:
+            try:
+                result = self.visit(var, (result, node))
+            except StaticError as e:
+                self._collect_error(e)
+                # Still add variable to scope even if there's an error, so later code can reference it
+                var_name = var.name if hasattr(var, 'name') else None
+                if var_name and var_name not in result[-1]:
+                    result[-1][var_name] = VarAttInfo(node.is_final, node.var_type, var)
+        return result
 
     def visit_variable(self, node: "Variable", o: Any = None):
         obj = o[0]
@@ -706,7 +792,10 @@ class StaticChecker(ASTVisitor):
             for scope in o:
                 if scope.get("can init final", None):
                     can_init_final = True
-            if lhs.is_final and not can_init_final: raise CannotAssignToConstant(node)
+            # CannotAssignToConstant is P5 - collect instead of raise
+            if lhs.is_final and not can_init_final:
+                self._collect_error(CannotAssignToConstant(node))
+                return o
 
         # Extract type from VarAttInfo if needed
         rhs_type = rhs
@@ -749,6 +838,10 @@ class StaticChecker(ASTVisitor):
         # If op is VarAttInfo, extract the type
         if isinstance(op, VarAttInfo):
             op = op._type
+        
+        # If op is an undeclared error, raise it directly (these have higher priority)
+        if isinstance(op, (UndeclaredAttribute, UndeclaredClass)):
+            raise op
         
         if isinstance(op, IllegalMemberAccess): raise IllegalMemberAccess(node)
         if not isinstance(op, (PrimitiveType, ArrayType, ClassType)): raise TypeMismatchInExpression(node)
@@ -1006,8 +1099,26 @@ class StaticChecker(ASTVisitor):
 
     def visit_identifier(self, node: "Identifier", o: Any = None):
         obj = o[0] if type(o) is tuple else o
-        self.undeclared_check(obj, node.name, self.ID_TXT)
-        result = next(filter(lambda value: value is not None, (scope.get(node.name, None) for scope in reversed(obj))))
+        
+        # Attributes can only be accessed via "this." or "ClassName." syntax
+        # Skip CLASS scope (index 1) when looking up identifiers
+        # Search in: METHOD scope (params), BLOCK scope (local vars), GLOBAL scope (classes, io)
+        scopes_to_search = []
+        for i, scope in enumerate(obj):
+            # Skip CLASS scope (index 1) which contains attributes
+            if i != 1:
+                scopes_to_search.append(scope)
+        
+        # Check if identifier exists in allowed scopes
+        result = None
+        for scope in reversed(scopes_to_search):
+            if node.name in scope:
+                result = scope[node.name]
+                break
+        
+        if result is None:
+            raise UndeclaredIdentifier(node.name)
+        
         return result
 
     def visit_this_expression(self, node: "ThisExpression", o: Any = None): # type: ignore[reportIncompatibleMethodOverride]
@@ -1035,11 +1146,13 @@ class StaticChecker(ASTVisitor):
         elems: list = list(map(lambda elem: self.visit(elem, o), node.value))
         
         # Check for IllegalArrayLiteral - all elements must have the same type
+        # IllegalArrayLiteral is P6 - collect instead of raise
         if elems:
             first_elem_type = elems[0]
             for ele_type in elems[1:]:
                 if ele_type != first_elem_type:
-                    raise IllegalArrayLiteral(node)
+                    self._collect_error(IllegalArrayLiteral(node))
+                    break  # Only collect once
 
         return node
 
