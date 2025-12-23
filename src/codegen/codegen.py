@@ -97,6 +97,8 @@ class CodeGenerator(ASTVisitor):
             )
         
         # TODO: Handle initialization if node.init_value is not None
+        if node.init_value:
+            pass
 
     # ============================================================================
     # Method Declarations
@@ -543,3 +545,11 @@ class CodeGenerator(ASTVisitor):
         code = self.emit.jvm.emitPUSHNULL()
         return code, None  # Type will be determined by context
 
+    def visit_method_invocation(self, node, o = None):
+        pass
+
+    def visit_static_member_access(self, node, o = None):
+        pass
+
+    def visit_static_method_invocation(self, node, o = None):
+        pass
