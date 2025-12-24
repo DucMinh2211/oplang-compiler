@@ -71,6 +71,64 @@ def test_002():
     assert result == expected, f"Expected '{expected}', got '{result}'"
 
 
+def test_003():
+    """Test printing a string literal using io.writeStrLn"""
+    ast = Program([
+        ClassDecl(
+            "Main",
+            None,
+            [
+                MethodDecl(
+                    True,  # is_static
+                    PrimitiveType("void"),
+                    "main",
+                    [],
+                    BlockStatement([], [
+                        MethodInvocationStatement(
+                            PostfixExpression(
+                                Identifier("io"),
+                                [MethodCall("writeStrLn", [StringLiteral("Hello World")])]
+                            )
+                        )
+                    ])
+                )
+            ]
+        )
+    ])
+    expected = "Hello World"
+    result = CodeGenerator().generate_and_run(ast)
+    assert result == expected, f"Expected '{expected}', got '{result}'"
+
+
+def test_004():
+    """Test printing an integer literal using io.writeIntLn"""
+    ast = Program([
+        ClassDecl(
+            "Main",
+            None,
+            [
+                MethodDecl(
+                    True,
+                    PrimitiveType("void"),
+                    "main",
+                    [],
+                    BlockStatement([], [
+                        MethodInvocationStatement(
+                            PostfixExpression(
+                                Identifier("io"),
+                                [MethodCall("writeIntLn", [IntLiteral(42)])]
+                            )
+                        )
+                    ])
+                )
+            ]
+        )
+    ])
+    expected = "42"
+    result = CodeGenerator().generate_and_run(ast)
+    assert result == expected, f"Expected '{expected}', got '{result}'"
+
+
 # TODO: Add more test cases here
 # Students should implement at least 100 test cases covering:
 # - All literal types (int, float, boolean, string, array, nil)
