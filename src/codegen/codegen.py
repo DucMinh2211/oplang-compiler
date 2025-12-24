@@ -60,6 +60,23 @@ class CodeGenerator(ASTVisitor):
         Visit class declaration - generate class structure.
         """
         self.current_class = node.name
+        
+        # Populate classes_members
+        class_members_syms = []
+        for member in node.members:
+            if isinstance(member, MethodDecl):
+                param_types = [p.param_type for p in member.params]
+                func_type = FunctionType(param_types, member.return_type)
+                class_members_syms.append(Symbol(member.name, func_type, CName(node.name)))
+            elif isinstance(member, DestructorDecl):
+                 func_type = FunctionType([], PrimitiveType("void"))
+                 class_members_syms.append(Symbol("finalize", func_type, CName(node.name)))
+            elif isinstance(member, AttributeDecl):
+                for attr in member.attributes:
+                    class_members_syms.append(Symbol(attr.name, member.attr_type, CName(node.name)))
+        
+        self.classes_members[node.name] = class_members_syms
+
         class_file = node.name + ".j"
         self.emit = Emitter(class_file)
         
@@ -70,8 +87,35 @@ class CodeGenerator(ASTVisitor):
         self.emit.print_out(self.emit.emit_prolog(node.name, superclass))
         
         # Process class members (attributes, methods, constructors, destructors)
+        has_constructor = False
         for member in node.members:
+            if isinstance(member, ConstructorDecl):
+                has_constructor = True
             self.visit(member, o)
+        
+        if not has_constructor:
+             # Default constructor
+             func_type = FunctionType([], PrimitiveType("void"))
+             self.emit.print_out(self.emit.emit_method("<init>", func_type, False))
+             
+             frame = Frame("<init>", PrimitiveType("void"))
+             frame.enter_scope(True)
+             from_label = frame.get_start_label()
+             to_label = frame.get_end_label()
+             
+             this_idx = frame.get_new_index()
+             self.emit.print_out(self.emit.emit_var(this_idx, "this", ClassType(node.name), from_label, to_label))
+             
+             self.emit.print_out(self.emit.emit_label(from_label, frame))
+             
+             self.emit.print_out(self.emit.jvm.emitALOAD(this_idx))
+             frame.push()
+             self.emit.print_out(self.emit.emit_invoke_special(frame, "java/lang/Object/<init>", FunctionType([], PrimitiveType("void"))))
+             
+             self.emit.print_out(self.emit.emit_return(PrimitiveType("void"), frame))
+             self.emit.print_out(self.emit.emit_label(to_label, frame))
+             self.emit.print_out(self.emit.emit_end_method(frame))
+             frame.exit_scope()
         
         # Emit class epilog
         self.emit.emit_epilog()

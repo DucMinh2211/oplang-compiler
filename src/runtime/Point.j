@@ -13,10 +13,12 @@ Label0:
 	invokespecial java/lang/Object/<init>()V
 	aload_0
 	iload_1
+	putfield Point/x I
 	aload_0
 	iload_2
+	putfield Point/y I
 	return
 Label1:
-.limit stack 4
+.limit stack 2
 .limit locals 3
 .end method
