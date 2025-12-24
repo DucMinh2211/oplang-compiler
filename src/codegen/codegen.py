@@ -16,12 +16,15 @@ from functools import *
 
 class PostfixAccess:
     """A helper class to pass state during postfix expression traversal."""
-    def __init__(self, frame, sym, code, current_type, is_static_context):
+    def __init__(self, frame, sym, code, current_type, is_static_context, is_left=False, is_first=False, is_last=False):
         self.frame = frame
         self.sym = sym
         self.code = code
         self.current_type = current_type
         self.is_static_context = is_static_context
+        self.is_left = is_left
+        self.is_first = is_first
+        self.is_last = is_last
 
 
 class CodeGenerator(ASTVisitor):
@@ -33,6 +36,7 @@ class CodeGenerator(ASTVisitor):
     def __init__(self):
         self.current_class = None
         self.emit = None  # Will be initialized per class
+        self.classes_members = {}
 
     # ============================================================================
     # Program and Class Declarations
@@ -74,7 +78,6 @@ class CodeGenerator(ASTVisitor):
     def visit_attribute_decl(self, node: "AttributeDecl", o: Any = None):
         """
         Visit attribute declaration - generate field directives.
-        TODO: Implement attribute initialization if needed
         """
         for attr in node.attributes:
             self.visit(attr, node)
@@ -124,15 +127,75 @@ class CodeGenerator(ASTVisitor):
         """
         Visit constructor declaration - generate constructor code.
         """
-        # TODO: Implement constructor generation
-        pass
+        frame = Frame("<init>", PrimitiveType("void"))
+        param_types = [p.param_type for p in node.params]
+        func_type = FunctionType(param_types, PrimitiveType("void"))
+        
+        self.emit.print_out(self.emit.emit_method("<init>", func_type, False))
+        
+        frame.enter_scope(True)
+        from_label = frame.get_start_label()
+        to_label = frame.get_end_label()
+        
+        # this
+        this_idx = frame.get_new_index()
+        self.emit.print_out(self.emit.emit_var(this_idx, "this", ClassType(self.current_class), from_label, to_label))
+        sym_list = [Symbol("this", ClassType(self.current_class), Index(this_idx))]
+        
+        # params
+        for param in node.params:
+            idx = frame.get_new_index()
+            self.emit.print_out(self.emit.emit_var(idx, param.name, param.param_type, from_label, to_label))
+            sym_list.append(Symbol(param.name, param.param_type, Index(idx)))
+            
+        sym_list = IO_SYMBOL_LIST + sym_list
+        
+        self.emit.print_out(self.emit.emit_label(from_label, frame))
+        
+        # super()
+        self.emit.print_out(self.emit.jvm.emitALOAD(this_idx))
+        frame.push()
+        self.emit.print_out(self.emit.emit_invoke_special(frame, "java/lang/Object/<init>", FunctionType([], PrimitiveType("void"))))
+        
+        o = SubBody(frame, sym_list)
+        self.visit(node.body, o)
+        
+        self.emit.print_out(self.emit.emit_return(PrimitiveType("void"), frame))
+        self.emit.print_out(self.emit.emit_label(to_label, frame))
+        self.emit.print_out(self.emit.emit_end_method(frame))
+        frame.exit_scope()
 
     def visit_destructor_decl(self, node: "DestructorDecl", o: Any = None):
         """
         Visit destructor declaration - generate destructor code.
         """
-        # TODO: Implement destructor generation
-        pass
+        frame = Frame("finalize", PrimitiveType("void"))
+        func_type = FunctionType([], PrimitiveType("void"))
+        
+        self.emit.print_out(self.emit.emit_method("finalize", func_type, False))
+        
+        frame.enter_scope(True)
+        from_label = frame.get_start_label()
+        to_label = frame.get_end_label()
+        
+        this_idx = frame.get_new_index()
+        self.emit.print_out(self.emit.emit_var(this_idx, "this", ClassType(self.current_class), from_label, to_label))
+        sym_list = [Symbol("this", ClassType(self.current_class), Index(this_idx))] + IO_SYMBOL_LIST
+        
+        self.emit.print_out(self.emit.emit_label(from_label, frame))
+        
+        o = SubBody(frame, sym_list)
+        self.visit(node.body, o)
+        
+        # super.finalize()
+        self.emit.print_out(self.emit.jvm.emitALOAD(this_idx))
+        frame.push()
+        self.emit.print_out(self.emit.emit_invoke_special(frame, "java/lang/Object/finalize", FunctionType([], PrimitiveType("void"))))
+        
+        self.emit.print_out(self.emit.emit_return(PrimitiveType("void"), frame))
+        self.emit.print_out(self.emit.emit_label(to_label, frame))
+        self.emit.print_out(self.emit.emit_end_method(frame))
+        frame.exit_scope()
 
     def visit_parameter(self, node: "Parameter", o: Any = None):
         """
@@ -221,12 +284,6 @@ class CodeGenerator(ASTVisitor):
                     )
                 )
                 sym_list.append(Symbol(param.name, param.param_type, Index(idx)))
-        
-        # Add IO symbols. In a real compiler, this would be handled more robustly.
-        # For the test cases, we add print and int2str.
-        sym_list.append(Symbol("print", FunctionType([PrimitiveType("string")], PrimitiveType("void")), CName("io")))
-        sym_list.append(Symbol("int2str", FunctionType([PrimitiveType("int")], PrimitiveType("string")), CName("io")))
-
 
         sym_list = IO_SYMBOL_LIST + sym_list
         
