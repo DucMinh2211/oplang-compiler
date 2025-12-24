@@ -38,6 +38,11 @@ class CodeGenerator(ASTVisitor):
         self.emit = None  # Will be initialized per class
         self.classes_members = {}
 
+    def get_members(self, class_type):
+        if hasattr(class_type, 'members'):
+            return class_type.members
+        return self.classes_members.get(class_type.class_name, [])
+
     # ============================================================================
     # Program and Class Declarations
     # ============================================================================
@@ -88,7 +93,7 @@ class CodeGenerator(ASTVisitor):
         """
         attr_decl = o  # AttributeDecl node
         class_name = self.current_class
-        field_name = class_name + "/" + node.name
+        field_name = node.name
         
         # Emit field directive
         if attr_decl.is_static:
@@ -372,6 +377,15 @@ class CodeGenerator(ASTVisitor):
                 self.emit.print_out(
                     self.emit.emit_write_var(var.name, node.var_type, idx, frame)
                 )
+            elif isinstance(node.var_type, ArrayType) and node.var_type.size > 0:
+                 # Auto-initialize array
+                 self.emit.print_out(self.emit.emit_push_iconst(node.var_type.size, frame))
+                 typ_str = self.emit.get_full_type(node.var_type.element_type)
+                 self.emit.print_out(self.emit.emit_new_array(typ_str))
+                 # newarray pops size (1) and pushes ref (1), so net stack change is 0. 
+                 # But emit_new_array doesn't touch frame, emit_push_iconst pushed 1.
+                 # So frame thinks +1. Correct.
+                 self.emit.print_out(self.emit.emit_write_var(var.name, node.var_type, idx, frame))
         
         return SubBody(frame, new_sym + o.sym)
 
@@ -384,14 +398,95 @@ class CodeGenerator(ASTVisitor):
         """
         if o is None:
             return
+
+        if isinstance(node.lhs, PostfixLHS):
+            # LHS is a postfix expression (e.g. a[i] or a.x)
+            # Standard order: Evaluate container, Evaluate index (if any), Evaluate RHS, Store.
+            
+            # Decompose PostfixLHS
+            postfix_expr = node.lhs.postfix_expr
+            primary = postfix_expr.primary
+            ops = postfix_expr.postfix_ops
+            
+            if not ops:
+                # Assigning to primary directly (only valid if primary is ID?)
+                if isinstance(primary, Identifier):
+                     # RHS first
+                     code, typ = self.visit(node.rhs, Access(o.frame, o.sym))
+                     self.emit.print_out(code)
+                     
+                     # Write var
+                     sym = next(filter(lambda x: x.name == primary.name, o.sym), None)
+                     if sym and type(sym.value) is Index:
+                         self.emit.print_out(self.emit.emit_write_var(sym.name, sym.type, sym.value.value, o.frame))
+                return
+
+            # Complex Postfix: container + ops
+            # Last op determines the store target.
+            prefix_ops = ops[:-1]
+            last_op = ops[-1]
+            
+            # 1. Evaluate Prefix (Container)
+            # We construct a temp PostfixExpression for the prefix
+            prefix_expr = PostfixExpression(primary, prefix_ops)
+            # Visit it to load the container reference on stack
+            ref_code, ref_type = self.visit(prefix_expr, Access(o.frame, o.sym))
+            self.emit.print_out(ref_code)
+            
+            is_static_access = isinstance(ref_type, ClassType) and not ref_code
+            
+            # 2. Handle Last Op
+            if isinstance(last_op, ArrayAccess):
+                # arr[idx] = val
+                # Stack has: arr_ref
+                
+                # Evaluate Index
+                idx_code, idx_type = self.visit(last_op.index, Access(o.frame, o.sym))
+                self.emit.print_out(idx_code)
+                
+                # Stack has: arr_ref, index
+                
+                # Evaluate RHS
+                rhs_code, rhs_type = self.visit(node.rhs, Access(o.frame, o.sym))
+                self.emit.print_out(rhs_code)
+                
+                # Stack has: arr_ref, index, value
+                
+                # Emit Store
+                if isinstance(ref_type, ArrayType):
+                    self.emit.print_out(self.emit.emit_astore(ref_type.element_type, o.frame))
+
+            elif isinstance(last_op, MemberAccess):
+                # obj.field = val
+                # Stack has: obj_ref (or nothing if static)
+                
+                # Evaluate RHS
+                rhs_code, rhs_type = self.visit(node.rhs, Access(o.frame, o.sym))
+                self.emit.print_out(rhs_code)
+                
+                # Stack has: obj_ref, value
+                
+                # Emit Store
+                field_name = last_op.member_name
+                if isinstance(ref_type, ClassType):
+                    class_name = ref_type.class_name
+                    # Find field type
+                    members = self.get_members(ref_type)
+                    member_sym = next((m for m in members if m.name == field_name), None)
+                    if member_sym:
+                        if is_static_access:
+                             self.emit.print_out(self.emit.emit_put_static(f"{class_name}/{field_name}", member_sym.type, o.frame))
+                        else:
+                             self.emit.print_out(self.emit.emit_put_field(f"{class_name}/{field_name}", member_sym.type, o.frame))
         
-        # Generate code for RHS
-        code, typ = self.visit(node.rhs, Access(o.frame, o.sym))
-        self.emit.print_out(code)
-        
-        # Generate code for LHS
-        lhs_code, lhs_type = self.visit(node.lhs, Access(o.frame, o.sym, is_left=True))
-        self.emit.print_out(lhs_code)
+        else:
+            # Generate code for RHS
+            code, typ = self.visit(node.rhs, Access(o.frame, o.sym))
+            self.emit.print_out(code)
+            
+            # Generate code for LHS
+            lhs_code, lhs_type = self.visit(node.lhs, Access(o.frame, o.sym, is_left=True))
+            self.emit.print_out(lhs_code)
 
     def visit_if_statement(self, node: "IfStatement", o: Any = None):
         """
@@ -532,10 +627,9 @@ class CodeGenerator(ASTVisitor):
         class_name = o.current_type.class_name
         method_name = node.method_name
 
-        if not hasattr(o.current_type, 'members'):
-            raise IllegalRuntimeException(f"ClassType for '{class_name}' is not decorated with members list.")
+        members = self.get_members(o.current_type)
 
-        method_sym = next((m for m in o.current_type.members if m.name == method_name and isinstance(m.type, FunctionType)), None)
+        method_sym = next((m for m in members if m.name == method_name and isinstance(m.type, FunctionType)), None)
         if not method_sym:
             raise IllegalOperandException(f"Method '{method_name}' not found in class '{class_name}'")
 
@@ -571,10 +665,9 @@ class CodeGenerator(ASTVisitor):
         class_name = o.current_type.class_name
         member_name = node.member_name
 
-        if not hasattr(o.current_type, 'members'):
-            raise IllegalRuntimeException(f"ClassType for '{class_name}' is not decorated with members list.")
+        members = self.get_members(o.current_type)
         
-        member_sym = next((m for m in o.current_type.members if m.name == member_name), None)
+        member_sym = next((m for m in members if m.name == member_name), None)
         if not member_sym:
             raise IllegalOperandException(f"Member '{member_name}' not found in class '{class_name}'")
 
@@ -602,7 +695,7 @@ class CodeGenerator(ASTVisitor):
             raise IllegalOperandException("Array index must be an integer")
         
         o.code += index_code
-        o.code += self.emit.emit_array_load(o.current_type.element_type, o.frame)
+        o.code += self.emit.emit_aload(o.current_type.element_type, o.frame)
         
         o.current_type = o.current_type.element_type
         o.is_static_context = False
@@ -611,9 +704,29 @@ class CodeGenerator(ASTVisitor):
     def visit_object_creation(self, node: "ObjectCreation", o: Access = None):
         """
         Visit object creation.
-        TODO: Implement object creation code generation
         """
-        pass
+        if o is None:
+            return "", None
+        
+        class_name = node.class_name
+        code = self.emit.jvm.emitNEW(class_name)
+        o.frame.push()
+        code += self.emit.emit_dup(o.frame)
+        
+        arg_codes = ""
+        arg_types = []
+        for arg in node.args:
+            arg_code, arg_type = self.visit(arg, o)
+            arg_codes += arg_code
+            arg_types.append(arg_type)
+            
+        code += arg_codes
+        
+        # Constructor signature
+        constructor_type = FunctionType(arg_types, PrimitiveType("void"))
+        code += self.emit.emit_invoke_special(o.frame, f"{class_name}/<init>", constructor_type)
+        
+        return code, ClassType(class_name)
 
     def visit_identifier(self, node: "Identifier", o: Access = None):
         """

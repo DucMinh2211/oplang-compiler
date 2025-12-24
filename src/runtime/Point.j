@@ -1,5 +1,22 @@
 .source Point.java
 .class public Point
 .super java/lang/Object
-.field Point/x I
-.field Point/y I
+.field x I
+.field y I
+
+.method public <init>(II)V
+.var 0 is this LPoint; from Label0 to Label1
+.var 1 is a I from Label0 to Label1
+.var 2 is b I from Label0 to Label1
+Label0:
+	aload_0
+	invokespecial java/lang/Object/<init>()V
+	aload_0
+	iload_1
+	aload_0
+	iload_2
+	return
+Label1:
+.limit stack 4
+.limit locals 3
+.end method

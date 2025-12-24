@@ -65,7 +65,6 @@ class Emitter:
         Returns:
             JVM type descriptor string
         """
-        type_in = type(in_type)
         if is_int_type(in_type):
             return "I"
         elif is_float_type(in_type):
@@ -76,9 +75,9 @@ class Emitter:
             return "Z"
         elif is_void_type(in_type):
             return "V"
-        elif type_in is ArrayType:
+        elif isinstance(in_type, ArrayType):
             return "[" + self.get_jvm_type(in_type.element_type)
-        elif type_in is FunctionType:
+        elif isinstance(in_type, FunctionType):
             return (
                 "("
                 + "".join(
@@ -87,11 +86,13 @@ class Emitter:
                 + ")"
                 + self.get_jvm_type(in_type.return_type)
             )
-        elif type_in is ClassType:
+        elif isinstance(in_type, ClassType):
             return "L" + in_type.class_name + ";"
-        elif type_in is ReferenceType:
+        elif isinstance(in_type, ReferenceType):
             # Reference type has same JVM representation as referenced type
             return self.get_jvm_type(in_type.referenced_type)
+        else:
+            raise IllegalOperandException(f"Unknown type: {in_type}")
 
     def get_full_type(self, in_type) -> str:
         """

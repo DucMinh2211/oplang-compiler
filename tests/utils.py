@@ -206,4 +206,6 @@ class CodeGenerator:
                 return "Java not found"
                 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return f"Code generation error: {str(e)}"

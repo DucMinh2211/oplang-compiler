@@ -14,17 +14,6 @@ class FunctionType(Type):
         return visitor.visit_function_type(self, o)
 
 
-class ClassType(Type):
-    """Class type node."""
-
-    def __init__(self, class_name):
-        super().__init__()
-        self.class_name = class_name
-
-    def accept(self, visitor, o=None):
-        return visitor.visit_class_type(self, o)
-
-
 class Value:
     pass
 
