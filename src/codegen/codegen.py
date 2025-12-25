@@ -37,11 +37,61 @@ class CodeGenerator(ASTVisitor):
         self.current_class = None
         self.emit = None  # Will be initialized per class
         self.classes_members = {}
+        self.classes_ast = {}
 
     def get_members(self, class_type):
         if hasattr(class_type, 'members'):
             return class_type.members
-        return self.classes_members.get(class_type.class_name, [])
+        
+        class_name = class_type.class_name
+        all_members = []
+        seen_names = set()
+        
+        curr_class = class_name
+        while curr_class and curr_class != "java/lang/Object":
+            class_info = self.classes_members.get(curr_class)
+            if not class_info:
+                break
+            
+            superclass, members = class_info
+            for m in members:
+                if m.name not in seen_names:
+                    all_members.append(m)
+                    seen_names.add(m.name)
+            
+            curr_class = superclass
+            
+        return all_members
+
+    def generate_attribute_initialization(self, class_name, frame, sym_list):
+        """Generate code to initialize instance attributes with their init_values."""
+        class_decl = self.classes_ast.get(class_name)
+        if not class_decl:
+            return
+
+        # Find 'this' index
+        this_sym = next(filter(lambda x: x.name == "this", sym_list), None)
+        if not this_sym:
+            return
+        this_idx = this_sym.value.value
+
+        for member in class_decl.members:
+            if isinstance(member, AttributeDecl) and not member.is_static:
+                for attr in member.attributes:
+                    if attr.init_value:
+                        # Load 'this'
+                        self.emit.print_out(self.emit.emit_read_var("this", ClassType(class_name), this_idx, frame))
+                        
+                        # Evaluate init_value
+                        code, typ = self.visit(attr.init_value, Access(frame, sym_list))
+                        self.emit.print_out(code)
+                        
+                        # Coercion if needed
+                        if is_float_type(member.attr_type) and is_int_type(typ):
+                             self.emit.print_out(self.emit.emit_i2f(frame))
+                        
+                        # Store to field
+                        self.emit.print_out(self.emit.emit_put_field(f"{class_name}/{attr.name}", member.attr_type, frame))
 
     # ============================================================================
     # Program and Class Declarations
@@ -60,7 +110,11 @@ class CodeGenerator(ASTVisitor):
         Visit class declaration - generate class structure.
         """
         self.current_class = node.name
+        self.classes_ast[node.name] = node
         
+        # Determine superclass
+        superclass = node.superclass if node.superclass else "java/lang/Object"
+
         # Populate classes_members
         class_members_syms = []
         for member in node.members:
@@ -75,13 +129,10 @@ class CodeGenerator(ASTVisitor):
                 for attr in member.attributes:
                     class_members_syms.append(Symbol(attr.name, member.attr_type, CName(node.name)))
         
-        self.classes_members[node.name] = class_members_syms
+        self.classes_members[node.name] = (node.superclass, class_members_syms)
 
         class_file = node.name + ".j"
         self.emit = Emitter(class_file)
-        
-        # Determine superclass
-        superclass = node.superclass if node.superclass else "java/lang/Object"
         
         # Emit class prolog
         self.emit.print_out(self.emit.emit_prolog(node.name, superclass))
@@ -91,7 +142,7 @@ class CodeGenerator(ASTVisitor):
         for member in node.members:
             if isinstance(member, ConstructorDecl):
                 has_constructor = True
-            self.visit(member, node.superclass)
+            self.visit(member, superclass)
         
         if not has_constructor:
              # Default constructor
@@ -105,11 +156,15 @@ class CodeGenerator(ASTVisitor):
              
              this_idx = frame.get_new_index()
              self.emit.print_out(self.emit.emit_var(this_idx, "this", ClassType(node.name), from_label, to_label))
+             sym_list = [Symbol("this", ClassType(node.name), Index(this_idx))] + IO_SYMBOL_LIST
              
              self.emit.print_out(self.emit.emit_label(from_label, frame))
              
              self.emit.print_out(self.emit.emit_read_var("this", ClassType(node.name), this_idx, frame))
              self.emit.print_out(self.emit.emit_invoke_special(frame, f"{superclass}/<init>", FunctionType([], PrimitiveType("void"))))
+             
+             # Initialize attributes
+             self.generate_attribute_initialization(node.name, frame, sym_list)
              
              self.emit.print_out(self.emit.emit_return(PrimitiveType("void"), frame))
              self.emit.print_out(self.emit.emit_label(to_label, frame))
@@ -204,6 +259,9 @@ class CodeGenerator(ASTVisitor):
         # super()
         self.emit.print_out(self.emit.emit_read_var("this", ClassType(self.current_class), this_idx, frame))
         self.emit.print_out(self.emit.emit_invoke_special(frame, f"{superclass_name}/<init>", FunctionType([], PrimitiveType("void"))))
+        
+        # Initialize attributes
+        self.generate_attribute_initialization(self.current_class, frame, sym_list)
         
         o = SubBody(frame, sym_list)
         self.visit(node.body, o)
@@ -525,12 +583,13 @@ class CodeGenerator(ASTVisitor):
                     members = self.get_members(ref_type)
                     member_sym = next((m for m in members if m.name == field_name), None)
                     if member_sym:
+                        declaring_class = member_sym.value.value
                         if is_float_type(member_sym.type) and is_int_type(rhs_type):
                             self.emit.print_out(self.emit.emit_i2f(o.frame))
                         if is_static_access:
-                             self.emit.print_out(self.emit.emit_put_static(f"{class_name}/{field_name}", member_sym.type, o.frame))
+                             self.emit.print_out(self.emit.emit_put_static(f"{declaring_class}/{field_name}", member_sym.type, o.frame))
                         else:
-                             self.emit.print_out(self.emit.emit_put_field(f"{class_name}/{field_name}", member_sym.type, o.frame))
+                             self.emit.print_out(self.emit.emit_put_field(f"{declaring_class}/{field_name}", member_sym.type, o.frame))
         
         else:
             # Generate code for RHS
@@ -849,10 +908,12 @@ class CodeGenerator(ASTVisitor):
         
         o.code += "".join(arg_codes)
         
+        declaring_class = method_sym.value.value
+        
         if o.is_static_context:
-            o.code += self.emit.emit_invoke_static(f"{class_name}/{method_name}", method_sym.type, o.frame)
+            o.code += self.emit.emit_invoke_static(f"{declaring_class}/{method_name}", method_sym.type, o.frame)
         else:
-            o.code += self.emit.emit_invoke_virtual(f"{class_name}/{method_name}", method_sym.type, o.frame)
+            o.code += self.emit.emit_invoke_virtual(f"{declaring_class}/{method_name}", method_sym.type, o.frame)
         
         o.current_type = method_sym.type.return_type
         o.is_static_context = False
@@ -877,10 +938,12 @@ class CodeGenerator(ASTVisitor):
         if not member_sym:
             raise IllegalOperandException(f"Member '{member_name}' not found in class '{class_name}'")
 
+        declaring_class = member_sym.value.value
+
         if o.is_static_context:
-            o.code += self.emit.emit_get_static(f"{class_name}/{member_name}", member_sym.type, o.frame)
+            o.code += self.emit.emit_get_static(f"{declaring_class}/{member_name}", member_sym.type, o.frame)
         else:
-            o.code += self.emit.emit_get_field(f"{class_name}/{member_name}", member_sym.type, o.frame)
+            o.code += self.emit.emit_get_field(f"{declaring_class}/{member_name}", member_sym.type, o.frame)
         
         o.current_type = member_sym.type
         o.is_static_context = False
