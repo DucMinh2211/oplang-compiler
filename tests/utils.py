@@ -169,19 +169,18 @@ class CodeGenerator:
                 # For now, try running the first class found, or look for a specific pattern
                 # This is a simplified approach - in practice, you might need to check which class has main
                 if class_files:
-                    # Try to find main class by checking class files
-                    # For simplicity, we'll try the first class file
-                    # In a real implementation, you might need to inspect the class files
-                    # or maintain a list of classes with main methods
-                    
-                    # Get class name from .class file (remove .class extension)
-                    for class_file in class_files:
-                        class_name = os.path.basename(class_file).replace(".class", "")
-                        # Skip io.class
-                        if class_name == "io":
-                            continue
-                        main_class = class_name
-                        break
+                    # Try to find "Main" class first
+                    if os.path.join(self.runtime_dir, "Main.class") in class_files:
+                        main_class = "Main"
+                    else:
+                        # Fallback: try the first available class
+                        for class_file in class_files:
+                            class_name = os.path.basename(class_file).replace(".class", "")
+                            # Skip io.class
+                            if class_name == "io":
+                                continue
+                            main_class = class_name
+                            break
                 
                 if not main_class:
                     return "Error: No main class found"

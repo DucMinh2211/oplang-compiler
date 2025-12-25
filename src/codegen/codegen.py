@@ -91,7 +91,7 @@ class CodeGenerator(ASTVisitor):
         for member in node.members:
             if isinstance(member, ConstructorDecl):
                 has_constructor = True
-            self.visit(member, o)
+            self.visit(member, node.superclass)
         
         if not has_constructor:
              # Default constructor
@@ -108,9 +108,8 @@ class CodeGenerator(ASTVisitor):
              
              self.emit.print_out(self.emit.emit_label(from_label, frame))
              
-             self.emit.print_out(self.emit.jvm.emitALOAD(this_idx))
-             frame.push()
-             self.emit.print_out(self.emit.emit_invoke_special(frame, "java/lang/Object/<init>", FunctionType([], PrimitiveType("void"))))
+             self.emit.print_out(self.emit.emit_read_var("this", ClassType(node.name), this_idx, frame))
+             self.emit.print_out(self.emit.emit_invoke_special(frame, f"{superclass}/<init>", FunctionType([], PrimitiveType("void"))))
              
              self.emit.print_out(self.emit.emit_return(PrimitiveType("void"), frame))
              self.emit.print_out(self.emit.emit_label(to_label, frame))
@@ -176,6 +175,7 @@ class CodeGenerator(ASTVisitor):
         """
         Visit constructor declaration - generate constructor code.
         """
+        superclass_name = o
         frame = Frame("<init>", PrimitiveType("void"))
         param_types = [p.param_type for p in node.params]
         func_type = FunctionType(param_types, PrimitiveType("void"))
@@ -202,9 +202,8 @@ class CodeGenerator(ASTVisitor):
         self.emit.print_out(self.emit.emit_label(from_label, frame))
         
         # super()
-        self.emit.print_out(self.emit.jvm.emitALOAD(this_idx))
-        frame.push()
-        self.emit.print_out(self.emit.emit_invoke_special(frame, "java/lang/Object/<init>", FunctionType([], PrimitiveType("void"))))
+        self.emit.print_out(self.emit.emit_read_var("this", ClassType(self.current_class), this_idx, frame))
+        self.emit.print_out(self.emit.emit_invoke_special(frame, f"{superclass_name}/<init>", FunctionType([], PrimitiveType("void"))))
         
         o = SubBody(frame, sym_list)
         self.visit(node.body, o)
@@ -218,6 +217,7 @@ class CodeGenerator(ASTVisitor):
         """
         Visit destructor declaration - generate destructor code.
         """
+        superclass_name = o
         frame = Frame("finalize", PrimitiveType("void"))
         func_type = FunctionType([], PrimitiveType("void"))
         
@@ -237,8 +237,7 @@ class CodeGenerator(ASTVisitor):
         self.visit(node.body, o)
         
         # super.finalize()
-        self.emit.print_out(self.emit.jvm.emitALOAD(this_idx))
-        frame.push()
+        self.emit.print_out(self.emit.emit_read_var("this", ClassType(self.current_class), this_idx, frame))
         self.emit.print_out(self.emit.emit_invoke_special(frame, "java/lang/Object/finalize", FunctionType([], PrimitiveType("void"))))
         
         self.emit.print_out(self.emit.emit_return(PrimitiveType("void"), frame))
@@ -418,6 +417,8 @@ class CodeGenerator(ASTVisitor):
                 # Generate code for initialization
                 code, typ = self.visit(var.init_value, Access(frame, o.sym))
                 self.emit.print_out(code)
+                if is_float_type(node.var_type) and is_int_type(typ):
+                    self.emit.print_out(self.emit.emit_i2f(frame))
                 self.emit.print_out(
                     self.emit.emit_write_var(var.name, node.var_type, idx, frame)
                 )
@@ -462,6 +463,8 @@ class CodeGenerator(ASTVisitor):
                      # Write var
                      sym = next(filter(lambda x: x.name == primary.name, o.sym), None)
                      if sym and type(sym.value) is Index:
+                         if is_float_type(sym.type) and is_int_type(typ):
+                             self.emit.print_out(self.emit.emit_i2f(o.frame))
                          self.emit.print_out(self.emit.emit_write_var(sym.name, sym.type, sym.value.value, o.frame))
                 return
 
@@ -494,6 +497,10 @@ class CodeGenerator(ASTVisitor):
                 rhs_code, rhs_type = self.visit(node.rhs, Access(o.frame, o.sym))
                 self.emit.print_out(rhs_code)
                 
+                # Coercion
+                if isinstance(ref_type, ArrayType) and is_float_type(ref_type.element_type) and is_int_type(rhs_type):
+                    self.emit.print_out(self.emit.emit_i2f(o.frame))
+
                 # Stack has: arr_ref, index, value
                 
                 # Emit Store
@@ -518,6 +525,8 @@ class CodeGenerator(ASTVisitor):
                     members = self.get_members(ref_type)
                     member_sym = next((m for m in members if m.name == field_name), None)
                     if member_sym:
+                        if is_float_type(member_sym.type) and is_int_type(rhs_type):
+                            self.emit.print_out(self.emit.emit_i2f(o.frame))
                         if is_static_access:
                              self.emit.print_out(self.emit.emit_put_static(f"{class_name}/{field_name}", member_sym.type, o.frame))
                         else:
@@ -530,35 +539,122 @@ class CodeGenerator(ASTVisitor):
             
             # Generate code for LHS
             lhs_code, lhs_type = self.visit(node.lhs, Access(o.frame, o.sym, is_left=True))
+            if is_float_type(lhs_type) and is_int_type(typ):
+                self.emit.print_out(self.emit.emit_i2f(o.frame))
             self.emit.print_out(lhs_code)
 
     def visit_if_statement(self, node: "IfStatement", o: Any = None):
         """
         Visit if statement.
-        TODO: Implement if statement code generation
         """
-        pass
+        if o is None:
+            return
+
+        # 1. Evaluate Condition
+        code, typ = self.visit(node.condition, Access(o.frame, o.sym))
+        self.emit.print_out(code)
+
+        # 2. Labels
+        else_label = o.frame.get_new_label()
+        exit_label = o.frame.get_new_label()
+
+        # 3. Jump to Else if False
+        self.emit.print_out(self.emit.emit_if_false(else_label, o.frame))
+
+        # 4. Then Block
+        self.visit(node.then_stmt, o)
+        
+        # 5. Skip Else
+        if node.else_stmt:
+            self.emit.print_out(self.emit.emit_goto(exit_label, o.frame))
+
+        # 6. Else Block
+        self.emit.print_out(self.emit.emit_label(else_label, o.frame))
+        if node.else_stmt:
+            self.visit(node.else_stmt, o)
+            self.emit.print_out(self.emit.emit_label(exit_label, o.frame))
 
     def visit_for_statement(self, node: "ForStatement", o: Any = None):
         """
         Visit for statement.
-        TODO: Implement for statement code generation
         """
-        pass
+        if o is None:
+            return
+
+        frame = o.frame
+        sym = o.sym
+        
+        # 1. Initialize Variable
+        # Evaluate start_expr
+        code, typ = self.visit(node.start_expr, Access(frame, sym))
+        self.emit.print_out(code)
+        
+        # Find variable index
+        loop_var_sym = next(filter(lambda x: x.name == node.variable, sym), None)
+        if loop_var_sym:
+             self.emit.print_out(self.emit.emit_write_var(node.variable, loop_var_sym.type, loop_var_sym.value.value, frame))
+
+        # 2. Enter Loop Context
+        frame.enter_loop()
+        break_label = frame.get_break_label()
+        continue_label = frame.get_continue_label()
+        start_label = frame.get_new_label()
+        
+        self.emit.print_out(self.emit.emit_label(start_label, frame))
+
+        # 3. Check Condition
+        # Load variable
+        self.emit.print_out(self.emit.emit_read_var(node.variable, loop_var_sym.type, loop_var_sym.value.value, frame))
+        
+        # Load end_expr
+        code, typ = self.visit(node.end_expr, Access(frame, sym))
+        self.emit.print_out(code)
+
+        # Compare
+        if node.direction == "to":
+            # if var > end_expr then break
+            self.emit.print_out(self.emit.emit_ificmpgt(break_label, frame))
+        else: # downto
+            # if var < end_expr then break
+            self.emit.print_out(self.emit.emit_ificmplt(break_label, frame))
+
+        # 4. Body
+        self.visit(node.body, o)
+
+        # 5. Update (Label for Continue)
+        self.emit.print_out(self.emit.emit_label(continue_label, frame))
+        
+        # Increment/Decrement
+        self.emit.print_out(self.emit.emit_read_var(node.variable, loop_var_sym.type, loop_var_sym.value.value, frame))
+        self.emit.print_out(self.emit.emit_push_iconst(1, frame))
+        if node.direction == "to":
+            self.emit.print_out(self.emit.emit_add_op("+", PrimitiveType("int"), frame))
+        else:
+            self.emit.print_out(self.emit.emit_add_op("-", PrimitiveType("int"), frame))
+        self.emit.print_out(self.emit.emit_write_var(node.variable, loop_var_sym.type, loop_var_sym.value.value, frame))
+
+        # 6. Loop Back
+        self.emit.print_out(self.emit.emit_goto(start_label, frame))
+
+        # 7. Exit Loop
+        self.emit.print_out(self.emit.emit_label(break_label, frame))
+        frame.exit_loop()
 
     def visit_break_statement(self, node: "BreakStatement", o: Any = None):
         """
         Visit break statement.
-        TODO: Implement break statement code generation
         """
-        pass
+        frame = o.frame
+        break_label = frame.get_break_label()
+        self.emit.print_out(self.emit.emit_goto(break_label, frame))
 
     def visit_continue_statement(self, node: "ContinueStatement", o: Any = None):
         """
         Visit continue statement.
-        TODO: Implement continue statement code generation
         """
-        pass
+        frame = o.frame
+        continue_label = frame.get_continue_label()
+        self.emit.print_out(self.emit.emit_goto(continue_label, frame))
 
     def visit_return_statement(self, node: "ReturnStatement", o: SubBody = None):
         """
@@ -571,6 +667,11 @@ class CodeGenerator(ASTVisitor):
         code, typ = self.visit(node.value, Access(o.frame, o.sym))
         self.emit.print_out(code)
         
+        # Coercion
+        if is_float_type(o.frame.return_type) and is_int_type(typ):
+            self.emit.print_out(self.emit.emit_i2f(o.frame))
+            typ = o.frame.return_type
+
         # Emit return instruction
         self.emit.print_out(self.emit.emit_return(typ, o.frame))
 
@@ -627,17 +728,78 @@ class CodeGenerator(ASTVisitor):
 
     def visit_binary_op(self, node: "BinaryOp", o: Access = None):
         """
-        Visit binary operation.
-        TODO: Implement binary operation code generation
+        Visit binary operation with implicit type coercion (int to float).
         """
-        pass
+        if o is None:
+            return "", None
+            
+        l_code, l_type = self.visit(node.left, o)
+        r_code, r_type = self.visit(node.right, o)
+        
+        op = node.operator
+        
+        # OPLang Specification:
+        # Arithmetic: +, -, *, /
+        # If one operand is float, convert the other to float.
+        # Exception: / always returns float.
+        # \ and % only for integer.
+        
+        is_float_op = is_float_type(l_type) or is_float_type(r_type) or op == "/"
+        
+        if is_float_op and op not in ["&&", "||", "\\", "%"]:
+            res_type = PrimitiveType("float")
+            
+            # Left operand code
+            code = l_code
+            if is_int_type(l_type):
+                code += self.emit.emit_i2f(o.frame)
+            
+            # Right operand code
+            code += r_code
+            if is_int_type(r_type):
+                code += self.emit.emit_i2f(o.frame)
+                
+            if op in ["+", "-"]:
+                return code + self.emit.emit_add_op(op, res_type, o.frame), res_type
+            elif op in ["*", "/"]:
+                return code + self.emit.emit_mul_op(op, res_type, o.frame), res_type
+            elif op in [">", "<", ">=", "<=", "==", "!="]:
+                return code + self.emit.emit_re_op(op, res_type, o.frame), PrimitiveType("boolean")
+        else:
+            # Integer or Boolean operation
+            code = l_code + r_code
+            
+            if op in ["+", "-"]:
+                return code + self.emit.emit_add_op(op, l_type, o.frame), l_type
+            elif op == "*":
+                return code + self.emit.emit_mul_op(op, l_type, o.frame), l_type
+            elif op == "\\": # Integer division
+                return code + self.emit.emit_div(o.frame), l_type
+            elif op == "%":
+                return code + self.emit.emit_mod(o.frame), l_type
+            elif op in ["&&", "||"]:
+                if op == "&&":
+                    return code + self.emit.emit_and_op(o.frame), PrimitiveType("boolean")
+                else:
+                    return code + self.emit.emit_or_op(o.frame), PrimitiveType("boolean")
+            elif op in [">", "<", ">=", "<=", "==", "!="]:
+                return code + self.emit.emit_re_op(op, l_type, o.frame), PrimitiveType("boolean")
+             
+        return "", None
 
     def visit_unary_op(self, node: "UnaryOp", o: Access = None):
         """
         Visit unary operation.
-        TODO: Implement unary operation code generation
         """
-        pass
+        if o is None:
+            return "", None
+
+        code, typ = self.visit(node.operand, o)
+        if node.operator == '-':
+            return code + self.emit.emit_neg_op(typ, o.frame), typ
+        elif node.operator == '!':
+            return code + self.emit.emit_not(typ, o.frame), typ
+        return code, typ
 
     def visit_postfix_expression(self, node: "PostfixExpression", o: Access = None):
         """
