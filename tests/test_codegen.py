@@ -692,4 +692,138 @@ def test_028():
     result = CodeGenerator().generate_and_run(ast)
     assert result == expected, f"Expected '{expected}', got '{result}'"
 
+""" --- TEST RECURSION --- """
+def test_029():
+    """Test recursion with factorial"""
+    ast = Program([
+        ClassDecl("MyMath", None, [
+            MethodDecl(True, PrimitiveType("int"), "fact", [Parameter(PrimitiveType("int"), "n")], BlockStatement([], [
+                IfStatement(
+                    BinaryOp(Identifier("n"), "<=", IntLiteral(1)),
+                    ReturnStatement(IntLiteral(1)),
+                    ReturnStatement(BinaryOp(Identifier("n"), "*", PostfixExpression(Identifier("MyMath"), [MethodCall("fact", [BinaryOp(Identifier("n"), "-", IntLiteral(1))])])))
+                )
+            ]))
+        ]),
+        ClassDecl("Main", None, [
+            MethodDecl(True, PrimitiveType("void"), "main", [], BlockStatement([], [
+                MethodInvocationStatement(PostfixExpression(Identifier("io"), [MethodCall("writeIntLn", [PostfixExpression(Identifier("MyMath"), [MethodCall("fact", [IntLiteral(5)])])])]))
+            ]))
+        ])
+    ])
+    expected = "120"
+    result = CodeGenerator().generate_and_run(ast)
+    assert result == expected, f"Expected '{expected}', got '{result}'"
+
+""" --- TEST STATIC MEMBERS --- """
+def test_030():
+    """Test static field and method access"""
+    ast = Program([
+        ClassDecl("Config", None, [
+            AttributeDecl(True, False, PrimitiveType("int"), [Attribute("VAL")]),
+            MethodDecl(True, PrimitiveType("int"), "getVal", [], BlockStatement([], [
+                ReturnStatement(PostfixExpression(Identifier("Config"), [MemberAccess("VAL")]))
+            ]))
+        ]),
+        ClassDecl("Main", None, [
+            MethodDecl(True, PrimitiveType("void"), "main", [], BlockStatement([], [
+                # Config.VAL = 100
+                AssignmentStatement(PostfixLHS(PostfixExpression(Identifier("Config"), [MemberAccess("VAL")])), IntLiteral(100)),
+                # print(Config.getVal())
+                MethodInvocationStatement(PostfixExpression(Identifier("io"), [MethodCall("writeIntLn", [PostfixExpression(Identifier("Config"), [MethodCall("getVal", [])])])]))
+            ]))
+        ])
+    ])
+    expected = "100"
+    result = CodeGenerator().generate_and_run(ast)
+    assert result == expected, f"Expected '{expected}', got '{result}'"
+
+""" --- TEST COMPLEX EXPRESSIONS --- """
+def test_031():
+    """Test complex arithmetic expression precedence"""
+    # (10 + 5) * 2 - 4 \\ 2 = 15 * 2 - 2 = 30 - 2 = 28
+    ast = Program([
+        ClassDecl("Main", None, [
+            MethodDecl(True, PrimitiveType("void"), "main", [], BlockStatement([], [
+                MethodInvocationStatement(PostfixExpression(Identifier("io"), [
+                    MethodCall("writeIntLn", [
+                        BinaryOp(
+                            BinaryOp(
+                                ParenthesizedExpression(BinaryOp(IntLiteral(10), "+", IntLiteral(5))),
+                                "*",
+                                IntLiteral(2)
+                            ),
+                            "-",
+                            BinaryOp(IntLiteral(4), "\\", IntLiteral(2))
+                        )
+                    ])
+                ]))
+            ]))
+        ])
+    ])
+    expected = "28"
+    result = CodeGenerator().generate_and_run(ast)
+    assert result == expected, f"Expected '{expected}', got '{result}'"
+
+""" --- TEST PARAMETER PASSING --- """
+def test_032():
+    """Test passing object by reference"""
+    ast = Program([
+        ClassDecl("Box", None, [
+            AttributeDecl(False, False, PrimitiveType("int"), [Attribute("val")])
+        ]),
+        ClassDecl("Modifier", None, [
+            MethodDecl(True, PrimitiveType("void"), "modify", [Parameter(ClassType("Box"), "b")], BlockStatement([], [
+                AssignmentStatement(PostfixLHS(PostfixExpression(Identifier("b"), [MemberAccess("val")])), IntLiteral(99))
+            ]))
+        ]),
+        ClassDecl("Main", None, [
+            MethodDecl(True, PrimitiveType("void"), "main", [], BlockStatement(
+                [VariableDecl(False, ClassType("Box"), [Variable("box", ObjectCreation("Box", []))])],
+                [
+                    AssignmentStatement(PostfixLHS(PostfixExpression(Identifier("box"), [MemberAccess("val")])), IntLiteral(1)),
+                    MethodInvocationStatement(PostfixExpression(Identifier("Modifier"), [MethodCall("modify", [Identifier("box")])])),
+                    MethodInvocationStatement(PostfixExpression(Identifier("io"), [MethodCall("writeIntLn", [PostfixExpression(Identifier("box"), [MemberAccess("val")])])]))
+                ]
+            ))
+        ])
+    ])
+    expected = "99"
+    result = CodeGenerator().generate_and_run(ast)
+    assert result == expected, f"Expected '{expected}', got '{result}'"
+
+""" --- TEST NESTED LOOPS --- """
+def test_033():
+    """Test nested for loops"""
+    ast = Program([
+        ClassDecl("Main", None, [
+            MethodDecl(True, PrimitiveType("void"), "main", [], BlockStatement(
+                [
+                    VariableDecl(False, PrimitiveType("int"), [Variable("i")]),
+                    VariableDecl(False, PrimitiveType("int"), [Variable("j")])
+                ],
+                [
+                    ForStatement(
+                        "i", IntLiteral(1), "to", IntLiteral(2),
+                        ForStatement(
+                            "j", IntLiteral(1), "to", IntLiteral(2),
+                            MethodInvocationStatement(PostfixExpression(Identifier("io"), [
+                                MethodCall("writeIntLn", [
+                                    BinaryOp(
+                                        BinaryOp(Identifier("i"), "*", IntLiteral(10)),
+                                        "+",
+                                        Identifier("j")
+                                    )
+                                ])
+                            ]))
+                        )
+                    )
+                ]
+            ))
+        ])
+    ])
+    expected = "11\\n12\\n21\\n22"
+    result = CodeGenerator().generate_and_run(ast)
+    assert result == expected, f"Expected '{expected}', got '{result}'"
+
 

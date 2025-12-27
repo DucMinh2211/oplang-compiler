@@ -27,6 +27,15 @@ class PostfixAccess:
         self.is_last = is_last
 
 
+class AttributeInit:
+    """Helper class for attribute initialization context."""
+    def __init__(self, frame, sym, attr_type, is_static):
+        self.frame = frame
+        self.sym = sym
+        self.attr_type = attr_type
+        self.is_static = is_static
+
+
 class CodeGenerator(ASTVisitor):
     """
     Code generator for OPLang.
@@ -62,36 +71,6 @@ class CodeGenerator(ASTVisitor):
             curr_class = superclass
             
         return all_members
-
-    def generate_attribute_initialization(self, class_name, frame, sym_list):
-        """Generate code to initialize instance attributes with their init_values."""
-        class_decl = self.classes_ast.get(class_name)
-        if not class_decl:
-            return
-
-        # Find 'this' index
-        this_sym = next(filter(lambda x: x.name == "this", sym_list), None)
-        if not this_sym:
-            return
-        this_idx = this_sym.value.value
-
-        for member in class_decl.members:
-            if isinstance(member, AttributeDecl) and not member.is_static:
-                for attr in member.attributes:
-                    if attr.init_value:
-                        # Load 'this'
-                        self.emit.print_out(self.emit.emit_read_var("this", ClassType(class_name), this_idx, frame))
-                        
-                        # Evaluate init_value
-                        code, typ = self.visit(attr.init_value, Access(frame, sym_list))
-                        self.emit.print_out(code)
-                        
-                        # Coercion if needed
-                        if is_float_type(member.attr_type) and is_int_type(typ):
-                             self.emit.print_out(self.emit.emit_i2f(frame))
-                        
-                        # Store to field
-                        self.emit.print_out(self.emit.emit_put_field(f"{class_name}/{attr.name}", member.attr_type, frame))
 
     # ============================================================================
     # Program and Class Declarations
@@ -164,7 +143,10 @@ class CodeGenerator(ASTVisitor):
              self.emit.print_out(self.emit.emit_invoke_special(frame, f"{superclass}/<init>", FunctionType([], PrimitiveType("void"))))
              
              # Initialize attributes
-             self.generate_attribute_initialization(node.name, frame, sym_list)
+             init_o = SubBody(frame, sym_list)
+             for member in node.members:
+                 if isinstance(member, AttributeDecl) and not member.is_static:
+                     self.visit(member, init_o)
              
              self.emit.print_out(self.emit.emit_return(PrimitiveType("void"), frame))
              self.emit.print_out(self.emit.emit_label(to_label, frame))
@@ -182,13 +164,41 @@ class CodeGenerator(ASTVisitor):
         """
         Visit attribute declaration - generate field directives.
         """
+        if isinstance(o, SubBody):
+             # Initialization context from constructor
+             for attr in node.attributes:
+                 self.visit(attr, AttributeInit(o.frame, o.sym, node.attr_type, node.is_static))
+             return
+
         for attr in node.attributes:
             self.visit(attr, node)
 
     def visit_attribute(self, node: "Attribute", o: Any = None):
         """
-        Visit individual attribute - generate field directive.
+        Visit individual attribute - generate field directive or initialization code.
         """
+        if isinstance(o, AttributeInit):
+            # Initialization logic
+            if node.init_value:
+                class_name = self.current_class
+                
+                # Load 'this'
+                this_sym = next(filter(lambda x: x.name == "this", o.sym), None)
+                if this_sym:
+                    self.emit.print_out(self.emit.emit_read_var("this", ClassType(class_name), this_sym.value.value, o.frame))
+                    
+                    # Evaluate init_value
+                    code, typ = self.visit(node.init_value, Access(o.frame, o.sym))
+                    self.emit.print_out(code)
+                    
+                    # Coercion if needed
+                    if is_float_type(o.attr_type) and is_int_type(typ):
+                            self.emit.print_out(self.emit.emit_i2f(o.frame))
+                    
+                    # Store to field
+                    self.emit.print_out(self.emit.emit_put_field(f"{class_name}/{node.name}", o.attr_type, o.frame))
+            return
+
         attr_decl = o  # AttributeDecl node
         class_name = self.current_class
         field_name = node.name
@@ -210,10 +220,6 @@ class CodeGenerator(ASTVisitor):
                     self.emit.get_jvm_type(attr_decl.attr_type)
                 )
             )
-        
-        # TODO: Handle initialization if node.init_value is not None
-        if node.init_value:
-            pass
 
     # ============================================================================
     # Method Declarations
@@ -261,7 +267,12 @@ class CodeGenerator(ASTVisitor):
         self.emit.print_out(self.emit.emit_invoke_special(frame, f"{superclass_name}/<init>", FunctionType([], PrimitiveType("void"))))
         
         # Initialize attributes
-        self.generate_attribute_initialization(self.current_class, frame, sym_list)
+        class_decl = self.classes_ast.get(self.current_class)
+        if class_decl:
+            init_o = SubBody(frame, sym_list)
+            for member in class_decl.members:
+                if isinstance(member, AttributeDecl) and not member.is_static:
+                    self.visit(member, init_o)
         
         o = SubBody(frame, sym_list)
         self.visit(node.body, o)
@@ -1100,9 +1111,52 @@ class CodeGenerator(ASTVisitor):
     def visit_array_literal(self, node: "ArrayLiteral", o: Access = None):
         """
         Visit array literal.
-        TODO: Implement array literal code generation
+        Generates code to create an array and populate it with elements.
+        Example: {1, 2, 3}
         """
-        pass
+        if o is None:
+            return "", None
+        
+        if not node.value:
+            raise IllegalOperandException("Empty array literal not supported")
+
+        # Determine Element Type based on the first element (assuming homogeneous array)
+        _, first_elem_type = self.visit(node.value[0], Access(o.frame, o.sym))
+        
+        # Push Array Size onto stack
+        size = len(node.value)
+        code = self.emit.emit_push_iconst(size, o.frame)
+        
+        # Create Array (newarray for primitives, anewarray for references)
+        if isinstance(first_elem_type, PrimitiveType):
+            typ_str = self.emit.get_full_type(first_elem_type)
+            code += self.emit.emit_new_array(typ_str)
+        else:
+            if is_string_type(first_elem_type):
+                code += self.emit.jvm.emitANEWARRAY("java/lang/String")
+            elif isinstance(first_elem_type, ClassType):
+                code += self.emit.jvm.emitANEWARRAY(first_elem_type.class_name)
+            else:
+                code += self.emit.jvm.emitANEWARRAY(self.emit.get_jvm_type(first_elem_type))
+        
+        # Populate Elements
+        for i, elem in enumerate(node.value):
+            # Duplicate array reference for use in astore
+            code += self.emit.emit_dup(o.frame)
+            # Push index
+            code += self.emit.emit_push_iconst(i, o.frame)
+            # Evaluate element expression
+            elem_code, elem_type = self.visit(elem, o)
+            code += elem_code
+            
+            # Perform type coercion if needed (e.g., float array receiving int)
+            if is_float_type(first_elem_type) and is_int_type(elem_type):
+                code += self.emit.emit_i2f(o.frame)
+            
+            # Store value into array
+            code += self.emit.emit_astore(first_elem_type, o.frame)
+            
+        return code, ArrayType(first_elem_type, size)
 
     def visit_nil_literal(self, node: "NilLiteral", o: Access = None):
         """
