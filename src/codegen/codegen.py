@@ -494,8 +494,18 @@ class CodeGenerator(ASTVisitor):
             elif isinstance(node.var_type, ArrayType) and node.var_type.size > 0:
                  # Auto-initialize array
                  self.emit.print_out(self.emit.emit_push_iconst(node.var_type.size, frame))
-                 typ_str = self.emit.get_full_type(node.var_type.element_type)
-                 self.emit.print_out(self.emit.emit_new_array(typ_str))
+                 elem_type = node.var_type.element_type
+                 if isinstance(elem_type, PrimitiveType) and not is_string_type(elem_type):
+                     typ_str = self.emit.get_full_type(elem_type)
+                     self.emit.print_out(self.emit.emit_new_array(typ_str))
+                 else:
+                     if is_string_type(elem_type):
+                         self.emit.print_out(self.emit.jvm.emitANEWARRAY("java/lang/String"))
+                     elif isinstance(elem_type, ClassType):
+                         self.emit.print_out(self.emit.jvm.emitANEWARRAY(elem_type.class_name))
+                     else:
+                         self.emit.print_out(self.emit.jvm.emitANEWARRAY(self.emit.get_jvm_type(elem_type)))
+                 
                  # newarray pops size (1) and pushes ref (1), so net stack change is 0. 
                  # But emit_new_array doesn't touch frame, emit_push_iconst pushed 1.
                  # So frame thinks +1. Correct.
@@ -836,7 +846,7 @@ class CodeGenerator(ASTVisitor):
             elif op in [">", "<", ">=", "<=", "==", "!="]:
                 return code + self.emit.emit_re_op(op, res_type, o.frame), PrimitiveType("boolean")
         else:
-            # Integer or Boolean operation
+            # Integer or Boolean or String operation
             code = l_code + r_code
             
             if op in ["+", "-"]:
@@ -847,13 +857,36 @@ class CodeGenerator(ASTVisitor):
                 return code + self.emit.emit_div(o.frame), l_type
             elif op == "%":
                 return code + self.emit.emit_mod(o.frame), l_type
-            elif op in ["&&", "||"]:
-                if op == "&&":
-                    return code + self.emit.emit_and_op(o.frame), PrimitiveType("boolean")
-                else:
-                    return code + self.emit.emit_or_op(o.frame), PrimitiveType("boolean")
             elif op in [">", "<", ">=", "<=", "==", "!="]:
                 return code + self.emit.emit_re_op(op, l_type, o.frame), PrimitiveType("boolean")
+            elif op == "^":
+                 return code + self.emit.emit_invoke_virtual("java/lang/String/concat", FunctionType([PrimitiveType("string")], PrimitiveType("string")), o.frame), PrimitiveType("string")
+            elif op == "&&":
+                false_label = o.frame.get_new_label()
+                end_label = o.frame.get_new_label()
+                code = l_code
+                code += self.emit.emit_dup(o.frame)
+                code += self.emit.emit_if_false(false_label, o.frame) # Pops if false
+                code += self.emit.emit_pop(o.frame) # Pop duplicated true
+                code += r_code
+                code += self.emit.emit_goto(end_label, o.frame)
+                code += self.emit.emit_label(false_label, o.frame)
+                # Stack has False (0) from dup
+                code += self.emit.emit_label(end_label, o.frame)
+                return code, PrimitiveType("boolean")
+            elif op == "||":
+                true_label = o.frame.get_new_label()
+                end_label = o.frame.get_new_label()
+                code = l_code
+                code += self.emit.emit_dup(o.frame)
+                code += self.emit.emit_if_true(true_label, o.frame) # Pops if true
+                code += self.emit.emit_pop(o.frame) # Pop duplicated false
+                code += r_code
+                code += self.emit.emit_goto(end_label, o.frame)
+                code += self.emit.emit_label(true_label, o.frame)
+                # Stack has True (1) from dup
+                code += self.emit.emit_label(end_label, o.frame)
+                return code, PrimitiveType("boolean")
              
         return "", None
 
@@ -869,6 +902,8 @@ class CodeGenerator(ASTVisitor):
             return code + self.emit.emit_neg_op(typ, o.frame), typ
         elif node.operator == '!':
             return code + self.emit.emit_not(typ, o.frame), typ
+        elif node.operator == '+':
+            return code, typ
         return code, typ
 
     def visit_postfix_expression(self, node: "PostfixExpression", o: Access = None):
@@ -1128,7 +1163,7 @@ class CodeGenerator(ASTVisitor):
         code = self.emit.emit_push_iconst(size, o.frame)
         
         # Create Array (newarray for primitives, anewarray for references)
-        if isinstance(first_elem_type, PrimitiveType):
+        if isinstance(first_elem_type, PrimitiveType) and not is_string_type(first_elem_type):
             typ_str = self.emit.get_full_type(first_elem_type)
             code += self.emit.emit_new_array(typ_str)
         else:

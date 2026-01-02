@@ -5,7 +5,7 @@
 .method public draw()V
 .var 0 is this LCircle; from Label0 to Label1
 Label0:
-	ldc "Drawing Circle"
+	ldc "Circle"
 	invokestatic io/writeStrLn(Ljava/lang/String;)V
 	return
 Label1:

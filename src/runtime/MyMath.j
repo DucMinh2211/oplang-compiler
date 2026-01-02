@@ -26,6 +26,8 @@ Label4:
 	imul
 	ireturn
 Label5:
+	iconst_0
+	ireturn
 Label1:
 .limit stack 7
 .limit locals 1

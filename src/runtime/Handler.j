@@ -1,11 +1,11 @@
-.source Shape.java
-.class public Shape
+.source Handler.java
+.class public Handler
 .super java/lang/Object
 
-.method public draw()V
-.var 0 is this LShape; from Label0 to Label1
+.method public static handle(LContainer;)V
+.var 0 is c LContainer; from Label0 to Label1
 Label0:
-	ldc "Shape"
+	ldc "Handled"
 	invokestatic io/writeStrLn(Ljava/lang/String;)V
 	return
 Label1:
@@ -14,7 +14,7 @@ Label1:
 .end method
 
 .method public <init>()V
-.var 0 is this LShape; from Label0 to Label1
+.var 0 is this LHandler; from Label0 to Label1
 Label0:
 	aload_0
 	invokespecial java/lang/Object/<init>()V

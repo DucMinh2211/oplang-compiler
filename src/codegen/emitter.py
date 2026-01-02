@@ -208,6 +208,8 @@ class Emitter:
             return self.jvm.emitIALOAD()
         elif is_float_type(in_):
             return self.jvm.emitFALOAD()
+        elif is_bool_type(in_):
+            return self.jvm.emitBALOAD()
         elif (
             type(in_) is ArrayType or type(in_) is ClassType or is_string_type(in_)
         ):
@@ -236,6 +238,8 @@ class Emitter:
             return self.jvm.emitIASTORE()
         elif is_float_type(in_):
             return self.jvm.emitFASTORE()
+        elif is_bool_type(in_):
+            return self.jvm.emitBASTORE()
         elif (
             type(in_) is ArrayType or type(in_) is ClassType or is_string_type(in_)
         ):
@@ -880,7 +884,7 @@ class Emitter:
             return self.jvm.emitFRETURN()
         elif is_void_type(in_):
             return self.jvm.emitRETURN()
-        elif type(in_) is ClassType or is_string_type(in_):
+        elif type(in_) is ClassType or is_string_type(in_) or isinstance(in_, ArrayType) or in_ is None:
             frame.pop()
             return self.jvm.emitARETURN()
 

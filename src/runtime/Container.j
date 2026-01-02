@@ -1,12 +1,12 @@
-.source Shape.java
-.class public Shape
+.source Container.java
+.class public Container
 .super java/lang/Object
 
-.method public draw()V
-.var 0 is this LShape; from Label0 to Label1
+.method public process()V
+.var 0 is this LContainer; from Label0 to Label1
 Label0:
-	ldc "Shape"
-	invokestatic io/writeStrLn(Ljava/lang/String;)V
+	aload_0
+	invokestatic Handler/handle(LContainer;)V
 	return
 Label1:
 .limit stack 1
@@ -14,7 +14,7 @@ Label1:
 .end method
 
 .method public <init>()V
-.var 0 is this LShape; from Label0 to Label1
+.var 0 is this LContainer; from Label0 to Label1
 Label0:
 	aload_0
 	invokespecial java/lang/Object/<init>()V
